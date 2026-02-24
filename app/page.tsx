@@ -2,8 +2,17 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { initializeApp } from "firebase/app";
-import { getFirestore, collection, addDoc, getDocs, updateDoc, doc } from "firebase/firestore";
+import {
+  getFirestore,
+  collection,
+  addDoc,
+  getDocs,
+  updateDoc,
+  deleteDoc,
+  doc,
+} from "firebase/firestore";
 
+// FIREBASE CONFIG
 const firebaseConfig = {
   apiKey: "AIzaSyDnduh9NKI2AqTn4rFC0kKTsIGCm6Ip7SY",
   authDomain: "gestionale-rudy.firebaseapp.com",
@@ -29,6 +38,7 @@ interface Client {
   maintenanceDate: string;
 }
 
+// CALCOLO GIORNI LAVORATIVI
 function addBusinessDays(date: Date, days: number) {
   const result = new Date(date);
   let added = 0;
@@ -60,6 +70,7 @@ export default function Home() {
     intervalType: "months" as "days" | "months",
   });
 
+  // CARICA CLIENTI
   const fetchClients = async () => {
     const snapshot = await getDocs(collection(db, "clients"));
     const list: Client[] = [];
@@ -79,7 +90,10 @@ export default function Home() {
   const addClient = async () => {
     if (!form.name) return;
 
-    const nextDate = calculateNextDate(form.intervalValue, form.intervalType);
+    const nextDate = calculateNextDate(
+      form.intervalValue,
+      form.intervalType
+    );
 
     await addDoc(collection(db, "clients"), {
       code: generateCode(),
@@ -113,6 +127,13 @@ export default function Home() {
     fetchClients();
   };
 
+  const deleteClient = async (client: Client) => {
+    if (!confirm("Eliminare questo cliente?")) return;
+    await deleteDoc(doc(db, "clients", client.id!));
+    setSelectedClient(null);
+    fetchClients();
+  };
+
   const getDaysDiff = (date: string) =>
     Math.ceil(
       (new Date(date).getTime() - new Date().getTime()) /
@@ -142,14 +163,15 @@ export default function Home() {
     return "bg-green-600";
   };
 
+  // ================= HOME =================
   if (!selectedClient) {
     return (
-      <div className="p-4 max-w-3xl mx-auto space-y-4 bg-white min-h-screen">
-        <h1 className="text-2xl font-bold text-center text-black">
+      <div className="p-4 max-w-3xl mx-auto space-y-4 bg-white min-h-screen text-black">
+        <h1 className="text-xl font-bold text-center">
           Gestionale Manutenzioni
         </h1>
 
-        <div className="grid grid-cols-3 gap-2 text-white text-sm font-bold">
+        <div className="grid grid-cols-3 gap-2 text-white text-xs font-bold">
           <div className="bg-red-600 p-2 rounded text-center">
             🔴 {stats.expired}
           </div>
@@ -162,7 +184,7 @@ export default function Home() {
         </div>
 
         <input
-          className="w-full border-2 border-black p-2 rounded text-sm text-black placeholder:text-gray-500"
+          className="w-full border-2 border-black p-2 rounded text-sm"
           placeholder="Cerca cliente..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
@@ -182,13 +204,11 @@ export default function Home() {
               <div
                 key={client.id}
                 onClick={() => setSelectedClient(client)}
-                className={`p-3 rounded-lg text-black text-sm font-semibold shadow border-2 border-black ${getCardColor(
+                className={`p-3 rounded text-white text-sm font-semibold ${getCardColor(
                   client.maintenanceDate
                 )}`}
               >
-                <div>
-                  {client.code} - {client.name}
-                </div>
+                {client.code} - {client.name}
                 <div className="text-xs">
                   Prox manut.: {new Date(
                     client.maintenanceDate
@@ -200,18 +220,39 @@ export default function Home() {
             ))}
         </div>
 
-        <div className="bg-white p-4 rounded-lg shadow space-y-2 border-2 border-black text-black">
-          <h2 className="font-bold text-sm">Nuovo Cliente</h2>
+        <div className="border-2 border-black p-3 rounded space-y-2">
+          <h2 className="text-sm font-bold">Nuovo Cliente</h2>
 
           <input
-            className="w-full border-2 border-black p-2 rounded text-sm text-black placeholder:text-gray-500"
+            className="w-full border p-2 rounded text-sm"
             placeholder="Nome"
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
           />
 
+          <input
+            className="w-full border p-2 rounded text-sm"
+            placeholder="Telefono"
+            value={form.phone}
+            onChange={(e) => setForm({ ...form, phone: e.target.value })}
+          />
+
+          <input
+            className="w-full border p-2 rounded text-sm"
+            placeholder="Email"
+            value={form.email}
+            onChange={(e) => setForm({ ...form, email: e.target.value })}
+          />
+
+          <input
+            className="w-full border p-2 rounded text-sm"
+            placeholder="Indirizzo"
+            value={form.address}
+            onChange={(e) => setForm({ ...form, address: e.target.value })}
+          />
+
           <textarea
-            className="w-full border-2 border-black p-2 rounded text-sm text-black placeholder:text-gray-500"
+            className="w-full border p-2 rounded text-sm"
             placeholder="Lavoro"
             value={form.job}
             onChange={(e) => setForm({ ...form, job: e.target.value })}
@@ -253,8 +294,10 @@ export default function Home() {
     );
   }
 
+  // ================= DETTAGLIO =================
+
   return (
-    <div className="p-4 max-w-3xl mx-auto space-y-4 bg-white min-h-screen">
+    <div className="p-4 max-w-3xl mx-auto space-y-4 bg-white min-h-screen text-black">
       <button
         onClick={() => setSelectedClient(null)}
         className="bg-gray-700 text-white p-2 rounded text-sm"
@@ -262,12 +305,46 @@ export default function Home() {
         ← Torna
       </button>
 
-      <div className="bg-white p-4 rounded-lg shadow space-y-2 border-2 border-black text-black">
+      <div className="border-2 border-black p-3 rounded space-y-3">
         <h2 className="text-lg font-bold">
           {selectedClient.code} - {selectedClient.name}
         </h2>
 
-        <p className="text-sm">
+        <div className="grid grid-cols-2 gap-2">
+          <a
+            href={`tel:${selectedClient.phone}`}
+            className="bg-blue-600 text-white p-2 rounded text-center text-sm font-bold"
+          >
+            📞 Chiama
+          </a>
+
+          <a
+            href={`https://wa.me/${selectedClient.phone}`}
+            target="_blank"
+            className="bg-green-600 text-white p-2 rounded text-center text-sm font-bold"
+          >
+            💬 WhatsApp
+          </a>
+
+          <a
+            href={`mailto:${selectedClient.email}`}
+            className="bg-gray-700 text-white p-2 rounded text-center text-sm font-bold"
+          >
+            ✉️ Email
+          </a>
+
+          <a
+            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+              selectedClient.address
+            )}`}
+            target="_blank"
+            className="bg-yellow-400 text-black p-2 rounded text-center text-sm font-bold"
+          >
+            📍 Maps
+          </a>
+        </div>
+
+        <p className="text-sm font-bold text-red-600">
           Prox manut.: {new Date(
             selectedClient.maintenanceDate
           ).toLocaleDateString()} ({getDaysDiff(
@@ -280,6 +357,13 @@ export default function Home() {
           className="w-full bg-green-600 text-white p-2 rounded text-sm font-bold"
         >
           Conferma manutenzione
+        </button>
+
+        <button
+          onClick={() => deleteClient(selectedClient)}
+          className="w-full bg-red-600 text-white p-2 rounded text-sm font-bold"
+        >
+          Elimina cliente
         </button>
       </div>
     </div>
