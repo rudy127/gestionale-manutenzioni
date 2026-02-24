@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { initializeApp } from "firebase/app";
-import { getFirestore, collection, addDoc, getDocs, updateDoc, deleteDoc, doc } from "firebase/firestore";
+import { getFirestore, collection, addDoc, getDocs, updateDoc, doc } from "firebase/firestore";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDnduh9NKI2AqTn4rFC0kKTsIGCm6Ip7SY",
@@ -28,10 +28,10 @@ interface Client {
   email: string;
   address: string;
   job: string;
-  monthsInterval: number;
+  intervalValue: number;
+  intervalType: "days" | "months";
   maintenanceDate: string;
   history?: Maintenance[];
-  documents?: string[]; // link PDF
 }
 
 function addBusinessDays(date: Date, days: number) {
@@ -45,11 +45,18 @@ function addBusinessDays(date: Date, days: number) {
   return result;
 }
 
+function calculateNextDate(intervalValue: number, intervalType: "days" | "months") {
+  if (intervalType === "days") {
+    return addBusinessDays(new Date(), intervalValue);
+  } else {
+    return addBusinessDays(new Date(), intervalValue * 22);
+  }
+}
+
 export default function Home() {
   const [clients, setClients] = useState<Client[]>([]);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [search, setSearch] = useState("");
-  const [docLink, setDocLink] = useState("");
 
   const [form, setForm] = useState({
     name: "",
@@ -57,13 +64,14 @@ export default function Home() {
     email: "",
     address: "",
     job: "",
-    monthsInterval: 6,
+    intervalValue: 6,
+    intervalType: "months" as "days" | "months",
   });
 
   const fetchClients = async () => {
-    const querySnapshot = await getDocs(collection(db, "clients"));
+    const snapshot = await getDocs(collection(db, "clients"));
     const list: Client[] = [];
-    querySnapshot.forEach((docSnap) => {
+    snapshot.forEach((docSnap) => {
       list.push({ id: docSnap.id, ...(docSnap.data() as Client) });
     });
     setClients(list);
@@ -73,130 +81,211 @@ export default function Home() {
     fetchClients();
   }, []);
 
-  const generateCode = () => "A" + (clients.length + 1).toString().padStart(3, "0");
+  const generateCode = () =>
+    "A" + (clients.length + 1).toString().padStart(3, "0");
 
   const addClient = async () => {
     if (!form.name) return;
 
-    const maintenanceDate = addBusinessDays(new Date(), form.monthsInterval * 22);
+    const maintenanceDate = calculateNextDate(
+      form.intervalValue,
+      form.intervalType
+    );
 
     await addDoc(collection(db, "clients"), {
       code: generateCode(),
       ...form,
       maintenanceDate: maintenanceDate.toISOString(),
       history: [],
-      documents: [],
     });
 
-    setForm({ name: "", phone: "", email: "", address: "", job: "", monthsInterval: 6 });
+    setForm({
+      name: "",
+      phone: "",
+      email: "",
+      address: "",
+      job: "",
+      intervalValue: 6,
+      intervalType: "months",
+    });
+
     fetchClients();
   };
 
   const confirmMaintenance = async (client: Client) => {
-    const newDate = addBusinessDays(new Date(), client.monthsInterval * 22);
+    const newDate = calculateNextDate(
+      client.intervalValue,
+      client.intervalType
+    );
 
     await updateDoc(doc(db, "clients", client.id!), {
       maintenanceDate: newDate.toISOString(),
-      history: [...(client.history || []), { date: new Date().toISOString() }],
+      history: [
+        ...(client.history || []),
+        { date: new Date().toISOString() },
+      ],
     });
 
-    fetchClients();
-  };
-
-  const addDocument = async () => {
-    if (!selectedClient || !docLink) return;
-
-    await updateDoc(doc(db, "clients", selectedClient.id!), {
-      documents: [...(selectedClient.documents || []), docLink],
-    });
-
-    setDocLink("");
     fetchClients();
   };
 
   const getDaysDiff = (date: string) =>
-    (new Date(date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24);
+    (new Date(date).getTime() - new Date().getTime()) /
+    (1000 * 60 * 60 * 24);
 
-  const expiredCount = useMemo(() =>
-    clients.filter(c => getDaysDiff(c.maintenanceDate) <= 0).length,
+  const expiredCount = useMemo(
+    () => clients.filter((c) => getDaysDiff(c.maintenanceDate) <= 0).length,
     [clients]
   );
 
   if (!selectedClient) {
     return (
-      <div className="p-6 max-w-4xl mx-auto space-y-6">
-        <h1 className="text-3xl font-bold text-center">Gestionale Manutenzioni</h1>
+      <div className="p-6 max-w-4xl mx-auto space-y-6 bg-gray-100 min-h-screen">
+        <h1 className="text-4xl font-extrabold text-center">
+          Gestionale Manutenzioni
+        </h1>
 
         {expiredCount > 0 && (
-          <div className="bg-red-600 text-white p-3 rounded text-center font-bold">
-            ⚠️ ATTENZIONE: {expiredCount} manutenzioni scadute
+          <div className="bg-red-700 text-white p-4 rounded-xl text-center font-extrabold text-lg">
+            ⚠️ {expiredCount} MANUTENZIONI SCADUTE
           </div>
         )}
 
         <input
-          className="w-full border p-2 rounded"
+          className="w-full border-2 border-black p-3 rounded-xl text-lg"
           placeholder="Cerca cliente..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
 
-        <div className="space-y-3">
+        <div className="space-y-4">
           {clients
-            .filter(c => c.name.toLowerCase().includes(search.toLowerCase()))
-            .sort((a, b) => new Date(a.maintenanceDate).getTime() - new Date(b.maintenanceDate).getTime())
-            .map(client => (
+            .filter((c) =>
+              c.name.toLowerCase().includes(search.toLowerCase())
+            )
+            .sort(
+              (a, b) =>
+                new Date(a.maintenanceDate).getTime() -
+                new Date(b.maintenanceDate).getTime()
+            )
+            .map((client) => (
               <div
                 key={client.id}
                 onClick={() => setSelectedClient(client)}
-                className=\"p-4 bg-gray-800 text-white rounded-xl shadow cursor-pointer\"
+                className="p-6 bg-black text-white rounded-2xl shadow-xl cursor-pointer border-4 border-yellow-400"
               >
-                <div className="font-bold">{client.code} - {client.name}</div>
-                <div className=\"text-sm font-semibold text-yellow-300\">Prox manut.: {new Date(client.maintenanceDate).toLocaleDateString()}</div>
+                <div className="text-2xl font-extrabold">
+                  {client.code} - {client.name}
+                </div>
+                <div className="text-xl font-bold text-yellow-400 mt-2">
+                  PROX MANUT.: {new Date(
+                    client.maintenanceDate
+                  ).toLocaleDateString()}
+                </div>
               </div>
             ))}
         </div>
 
-        <div className="bg-white p-4 rounded-xl shadow space-y-3">
-          <h2 className="font-bold">Nuovo Cliente</h2>
-          <input className="w-full border p-2 rounded" placeholder="Nome" value={form.name} onChange={(e)=>setForm({...form,name:e.target.value})}/>
-          <input className="w-full border p-2 rounded" placeholder="Telefono" value={form.phone} onChange={(e)=>setForm({...form,phone:e.target.value})}/>
-          <input className="w-full border p-2 rounded" placeholder="Email" value={form.email} onChange={(e)=>setForm({...form,email:e.target.value})}/>
-          <input className="w-full border p-2 rounded" placeholder="Indirizzo" value={form.address} onChange={(e)=>setForm({...form,address:e.target.value})}/>
-          <textarea className="w-full border p-2 rounded" placeholder="Lavoro" value={form.job} onChange={(e)=>setForm({...form,job:e.target.value})}/>
-          <label className="font-semibold">Prox manut. (mesi)</label>
-          <input type="number" className="w-full border p-2 rounded" value={form.monthsInterval} onChange={(e)=>setForm({...form,monthsInterval:Number(e.target.value)})}/>
-          <button onClick={addClient} className="w-full bg-green-600 text-white p-2 rounded">Salva Cliente</button>
+        <div className="bg-white p-6 rounded-2xl shadow-xl space-y-4 border-2 border-black">
+          <h2 className="text-2xl font-extrabold">Nuovo Cliente</h2>
+
+          <input
+            className="w-full border-2 border-black p-3 rounded-xl text-lg"
+            placeholder="Nome"
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+          />
+
+          <input
+            className="w-full border-2 border-black p-3 rounded-xl text-lg"
+            placeholder="Telefono"
+            value={form.phone}
+            onChange={(e) => setForm({ ...form, phone: e.target.value })}
+          />
+
+          <input
+            className="w-full border-2 border-black p-3 rounded-xl text-lg"
+            placeholder="Email"
+            value={form.email}
+            onChange={(e) => setForm({ ...form, email: e.target.value })}
+          />
+
+          <input
+            className="w-full border-2 border-black p-3 rounded-xl text-lg"
+            placeholder="Indirizzo"
+            value={form.address}
+            onChange={(e) => setForm({ ...form, address: e.target.value })}
+          />
+
+          <textarea
+            className="w-full border-2 border-black p-3 rounded-xl text-lg"
+            placeholder="Lavoro"
+            value={form.job}
+            onChange={(e) => setForm({ ...form, job: e.target.value })}
+          />
+
+          <div className="flex gap-3">
+            <input
+              type="number"
+              className="w-1/2 border-2 border-black p-3 rounded-xl text-lg"
+              value={form.intervalValue}
+              onChange={(e) =>
+                setForm({ ...form, intervalValue: Number(e.target.value) })
+              }
+            />
+
+            <select
+              className="w-1/2 border-2 border-black p-3 rounded-xl text-lg"
+              value={form.intervalType}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  intervalType: e.target.value as "days" | "months",
+                })
+              }
+            >
+              <option value="months">Mesi</option>
+              <option value="days">Giorni</option>
+            </select>
+          </div>
+
+          <button
+            onClick={addClient}
+            className="w-full bg-green-700 text-white p-4 rounded-xl text-xl font-bold"
+          >
+            SALVA CLIENTE
+          </button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="p-6 max-w-4xl mx-auto space-y-6">
-      <button onClick={()=>setSelectedClient(null)} className="bg-gray-700 text-white p-2 rounded">← Torna</button>
+    <div className="p-6 max-w-4xl mx-auto space-y-6 bg-gray-100 min-h-screen">
+      <button
+        onClick={() => setSelectedClient(null)}
+        className="bg-black text-white p-3 rounded-xl text-lg font-bold"
+      >
+        ← TORNA
+      </button>
 
-      <div className="bg-white p-6 rounded-xl shadow space-y-3">
-        <h2 className="text-2xl font-bold">{selectedClient.code} - {selectedClient.name}</h2>
-        <p><strong>Telefono:</strong> <a href={`tel:${selectedClient.phone}`} className="text-blue-600 underline">{selectedClient.phone}</a></p>
-        <p><strong>Email:</strong> <a href={`mailto:${selectedClient.email}`} className="text-blue-600 underline">{selectedClient.email}</a></p>
-        <p><strong>Prox manut.:</strong> {new Date(selectedClient.maintenanceDate).toLocaleDateString()}</p>
+      <div className="bg-white p-6 rounded-2xl shadow-xl space-y-4 border-2 border-black">
+        <h2 className="text-3xl font-extrabold">
+          {selectedClient.code} - {selectedClient.name}
+        </h2>
 
-        <button onClick={()=>confirmMaintenance(selectedClient)} className="w-full bg-green-600 text-white p-2 rounded">Conferma Manutenzione</button>
+        <p className="text-xl font-bold text-yellow-600">
+          PROX MANUT.: {new Date(
+            selectedClient.maintenanceDate
+          ).toLocaleDateString()}
+        </p>
 
-        <hr/>
-        <h3 className="font-bold">Storico Manutenzioni</h3>
-        {(selectedClient.history || []).map((m,i)=>(
-          <div key={i} className="text-sm">{new Date(m.date).toLocaleDateString()}</div>
-        ))}
-
-        <hr/>
-        <h3 className="font-bold">Allega Documento (link PDF)</h3>
-        <input className="w-full border p-2 rounded" placeholder="Incolla link PDF" value={docLink} onChange={(e)=>setDocLink(e.target.value)}/>
-        <button onClick={addDocument} className="w-full bg-blue-600 text-white p-2 rounded">Aggiungi Documento</button>
-
-        {(selectedClient.documents || []).map((d,i)=>(
-          <div key={i}><a href={d} target="_blank" className="text-blue-600 underline">Documento {i+1}</a></div>
-        ))}
+        <button
+          onClick={() => confirmMaintenance(selectedClient)}
+          className="w-full bg-green-700 text-white p-4 rounded-xl text-xl font-bold"
+        >
+          CONFERMA MANUTENZIONE
+        </button>
       </div>
     </div>
   );
