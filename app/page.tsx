@@ -144,7 +144,7 @@ export default function Home() {
 
   if (!selectedClient) {
     return (
-      <div className="p-4 max-w-3xl mx-auto space-y-4 bg-gray-50 min-h-screen">
+      <div className="p-4 max-w-3xl mx-auto space-y-4 bg-white min-h-screen">
         <h1 className="text-2xl font-bold text-center text-black">
           Gestionale Manutenzioni
         </h1>
@@ -162,7 +162,7 @@ export default function Home() {
         </div>
 
         <input
-          className="w-full border p-2 rounded text-sm"
+          className="w-full border-2 border-black p-2 rounded text-sm text-black placeholder:text-gray-500"
           placeholder="Cerca cliente..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
@@ -182,7 +182,7 @@ export default function Home() {
               <div
                 key={client.id}
                 onClick={() => setSelectedClient(client)}
-                className={`p-3 rounded-lg text-white text-sm font-semibold shadow ${getCardColor(
+                className={`p-3 rounded-lg text-black text-sm font-semibold shadow border-2 border-black ${getCardColor(
                   client.maintenanceDate
                 )}`}
               >
@@ -200,18 +200,18 @@ export default function Home() {
             ))}
         </div>
 
-        <div className="bg-white p-4 rounded-lg shadow space-y-2 border">
+        <div className="bg-white p-4 rounded-lg shadow space-y-2 border-2 border-black text-black">
           <h2 className="font-bold text-sm">Nuovo Cliente</h2>
 
           <input
-            className="w-full border p-2 rounded text-sm"
+            className="w-full border-2 border-black p-2 rounded text-sm text-black placeholder:text-gray-500"
             placeholder="Nome"
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
           />
 
           <textarea
-            className="w-full border p-2 rounded text-sm"
+            className="w-full border-2 border-black p-2 rounded text-sm text-black placeholder:text-gray-500"
             placeholder="Lavoro"
             value={form.job}
             onChange={(e) => setForm({ ...form, job: e.target.value })}
@@ -254,7 +254,7 @@ export default function Home() {
   }
 
   return (
-    <div className="p-4 max-w-3xl mx-auto space-y-4 bg-gray-50 min-h-screen">
+    <div className="p-4 max-w-3xl mx-auto space-y-4 bg-white min-h-screen">
       <button
         onClick={() => setSelectedClient(null)}
         className="bg-gray-700 text-white p-2 rounded text-sm"
@@ -262,7 +262,7 @@ export default function Home() {
         ← Torna
       </button>
 
-      <div className="bg-white p-4 rounded-lg shadow space-y-2 border">
+      <div className="bg-white p-4 rounded-lg shadow space-y-2 border-2 border-black text-black">
         <h2 className="text-lg font-bold">
           {selectedClient.code} - {selectedClient.name}
         </h2>
