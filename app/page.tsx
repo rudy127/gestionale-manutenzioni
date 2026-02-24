@@ -16,10 +16,6 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-interface Maintenance {
-  date: string;
-}
-
 interface Client {
   id?: string;
   code: string;
@@ -31,7 +27,6 @@ interface Client {
   intervalValue: number;
   intervalType: "days" | "months";
   maintenanceDate: string;
-  history?: Maintenance[];
 }
 
 function addBusinessDays(date: Date, days: number) {
@@ -45,12 +40,9 @@ function addBusinessDays(date: Date, days: number) {
   return result;
 }
 
-function calculateNextDate(intervalValue: number, intervalType: "days" | "months") {
-  if (intervalType === "days") {
-    return addBusinessDays(new Date(), intervalValue);
-  } else {
-    return addBusinessDays(new Date(), intervalValue * 22);
-  }
+function calculateNextDate(value: number, type: "days" | "months") {
+  if (type === "days") return addBusinessDays(new Date(), value);
+  return addBusinessDays(new Date(), value * 22);
 }
 
 export default function Home() {
@@ -87,16 +79,12 @@ export default function Home() {
   const addClient = async () => {
     if (!form.name) return;
 
-    const maintenanceDate = calculateNextDate(
-      form.intervalValue,
-      form.intervalType
-    );
+    const nextDate = calculateNextDate(form.intervalValue, form.intervalType);
 
     await addDoc(collection(db, "clients"), {
       code: generateCode(),
       ...form,
-      maintenanceDate: maintenanceDate.toISOString(),
-      history: [],
+      maintenanceDate: nextDate.toISOString(),
     });
 
     setForm({
@@ -120,45 +108,67 @@ export default function Home() {
 
     await updateDoc(doc(db, "clients", client.id!), {
       maintenanceDate: newDate.toISOString(),
-      history: [
-        ...(client.history || []),
-        { date: new Date().toISOString() },
-      ],
     });
 
     fetchClients();
   };
 
   const getDaysDiff = (date: string) =>
-    (new Date(date).getTime() - new Date().getTime()) /
-    (1000 * 60 * 60 * 24);
+    Math.ceil(
+      (new Date(date).getTime() - new Date().getTime()) /
+        (1000 * 60 * 60 * 24)
+    );
 
-  const expiredCount = useMemo(
-    () => clients.filter((c) => getDaysDiff(c.maintenanceDate) <= 0).length,
-    [clients]
-  );
+  const stats = useMemo(() => {
+    let expired = 0;
+    let soon = 0;
+    let upcoming = 0;
+
+    clients.forEach((c) => {
+      const diff = getDaysDiff(c.maintenanceDate);
+      if (diff <= 0) expired++;
+      else if (diff <= 7) soon++;
+      else if (diff <= 14) upcoming++;
+    });
+
+    return { expired, soon, upcoming };
+  }, [clients]);
+
+  const getCardColor = (date: string) => {
+    const diff = getDaysDiff(date);
+    if (diff <= 0) return "bg-red-600";
+    if (diff <= 7) return "bg-orange-500";
+    if (diff <= 14) return "bg-yellow-400 text-black";
+    return "bg-green-600";
+  };
 
   if (!selectedClient) {
     return (
-      <div className="p-6 max-w-4xl mx-auto space-y-6 bg-gray-100 min-h-screen">
-        <h1 className="text-4xl font-extrabold text-center">
+      <div className="p-4 max-w-3xl mx-auto space-y-4 bg-gray-50 min-h-screen">
+        <h1 className="text-2xl font-bold text-center text-black">
           Gestionale Manutenzioni
         </h1>
 
-        {expiredCount > 0 && (
-          <div className="bg-red-700 text-white p-4 rounded-xl text-center font-extrabold text-lg">
-            ⚠️ {expiredCount} MANUTENZIONI SCADUTE
+        <div className="grid grid-cols-3 gap-2 text-white text-sm font-bold">
+          <div className="bg-red-600 p-2 rounded text-center">
+            🔴 {stats.expired}
           </div>
-        )}
+          <div className="bg-orange-500 p-2 rounded text-center">
+            🟠 {stats.soon}
+          </div>
+          <div className="bg-yellow-400 text-black p-2 rounded text-center">
+            🟡 {stats.upcoming}
+          </div>
+        </div>
 
         <input
-          className="w-full border-2 border-black p-3 rounded-xl text-lg"
+          className="w-full border p-2 rounded text-sm"
           placeholder="Cerca cliente..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
 
-        <div className="space-y-4">
+        <div className="space-y-2">
           {clients
             .filter((c) =>
               c.name.toLowerCase().includes(search.toLowerCase())
@@ -172,62 +182,45 @@ export default function Home() {
               <div
                 key={client.id}
                 onClick={() => setSelectedClient(client)}
-                className="p-6 bg-black text-white rounded-2xl shadow-xl cursor-pointer border-4 border-yellow-400"
+                className={`p-3 rounded-lg text-white text-sm font-semibold shadow ${getCardColor(
+                  client.maintenanceDate
+                )}`}
               >
-                <div className="text-2xl font-extrabold">
+                <div>
                   {client.code} - {client.name}
                 </div>
-                <div className="text-xl font-bold text-yellow-400 mt-2">
-                  PROX MANUT.: {new Date(
+                <div className="text-xs">
+                  Prox manut.: {new Date(
                     client.maintenanceDate
-                  ).toLocaleDateString()}
+                  ).toLocaleDateString()} ({getDaysDiff(
+                    client.maintenanceDate
+                  )} gg)
                 </div>
               </div>
             ))}
         </div>
 
-        <div className="bg-white p-6 rounded-2xl shadow-xl space-y-4 border-2 border-black">
-          <h2 className="text-2xl font-extrabold">Nuovo Cliente</h2>
+        <div className="bg-white p-4 rounded-lg shadow space-y-2 border">
+          <h2 className="font-bold text-sm">Nuovo Cliente</h2>
 
           <input
-            className="w-full border-2 border-black p-3 rounded-xl text-lg"
+            className="w-full border p-2 rounded text-sm"
             placeholder="Nome"
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
           />
 
-          <input
-            className="w-full border-2 border-black p-3 rounded-xl text-lg"
-            placeholder="Telefono"
-            value={form.phone}
-            onChange={(e) => setForm({ ...form, phone: e.target.value })}
-          />
-
-          <input
-            className="w-full border-2 border-black p-3 rounded-xl text-lg"
-            placeholder="Email"
-            value={form.email}
-            onChange={(e) => setForm({ ...form, email: e.target.value })}
-          />
-
-          <input
-            className="w-full border-2 border-black p-3 rounded-xl text-lg"
-            placeholder="Indirizzo"
-            value={form.address}
-            onChange={(e) => setForm({ ...form, address: e.target.value })}
-          />
-
           <textarea
-            className="w-full border-2 border-black p-3 rounded-xl text-lg"
+            className="w-full border p-2 rounded text-sm"
             placeholder="Lavoro"
             value={form.job}
             onChange={(e) => setForm({ ...form, job: e.target.value })}
           />
 
-          <div className="flex gap-3">
+          <div className="flex gap-2">
             <input
               type="number"
-              className="w-1/2 border-2 border-black p-3 rounded-xl text-lg"
+              className="w-1/2 border p-2 rounded text-sm"
               value={form.intervalValue}
               onChange={(e) =>
                 setForm({ ...form, intervalValue: Number(e.target.value) })
@@ -235,7 +228,7 @@ export default function Home() {
             />
 
             <select
-              className="w-1/2 border-2 border-black p-3 rounded-xl text-lg"
+              className="w-1/2 border p-2 rounded text-sm"
               value={form.intervalType}
               onChange={(e) =>
                 setForm({
@@ -251,9 +244,9 @@ export default function Home() {
 
           <button
             onClick={addClient}
-            className="w-full bg-green-700 text-white p-4 rounded-xl text-xl font-bold"
+            className="w-full bg-green-600 text-white p-2 rounded text-sm font-bold"
           >
-            SALVA CLIENTE
+            Salva
           </button>
         </div>
       </div>
@@ -261,30 +254,32 @@ export default function Home() {
   }
 
   return (
-    <div className="p-6 max-w-4xl mx-auto space-y-6 bg-gray-100 min-h-screen">
+    <div className="p-4 max-w-3xl mx-auto space-y-4 bg-gray-50 min-h-screen">
       <button
         onClick={() => setSelectedClient(null)}
-        className="bg-black text-white p-3 rounded-xl text-lg font-bold"
+        className="bg-gray-700 text-white p-2 rounded text-sm"
       >
-        ← TORNA
+        ← Torna
       </button>
 
-      <div className="bg-white p-6 rounded-2xl shadow-xl space-y-4 border-2 border-black">
-        <h2 className="text-3xl font-extrabold">
+      <div className="bg-white p-4 rounded-lg shadow space-y-2 border">
+        <h2 className="text-lg font-bold">
           {selectedClient.code} - {selectedClient.name}
         </h2>
 
-        <p className="text-xl font-bold text-yellow-600">
-          PROX MANUT.: {new Date(
+        <p className="text-sm">
+          Prox manut.: {new Date(
             selectedClient.maintenanceDate
-          ).toLocaleDateString()}
+          ).toLocaleDateString()} ({getDaysDiff(
+            selectedClient.maintenanceDate
+          )} gg)
         </p>
 
         <button
           onClick={() => confirmMaintenance(selectedClient)}
-          className="w-full bg-green-700 text-white p-4 rounded-xl text-xl font-bold"
+          className="w-full bg-green-600 text-white p-2 rounded text-sm font-bold"
         >
-          CONFERMA MANUTENZIONE
+          Conferma manutenzione
         </button>
       </div>
     </div>
