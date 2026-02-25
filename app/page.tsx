@@ -12,6 +12,7 @@ import {
   doc,
   query,
   where,
+  arrayUnion,
 } from "firebase/firestore";
 import {
   getAuth,
@@ -33,6 +34,11 @@ const firebaseConfig = {
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
 const db = getFirestore(app);
 
+interface HistoryEntry {
+  date: string;
+  note: string;
+}
+
 interface Client {
   id?: string;
   code: string;
@@ -45,6 +51,7 @@ interface Client {
   intervalType: "days" | "months";
   maintenanceDate: string;
   ownerId: string;
+  history?: HistoryEntry[];
 }
 
 function addBusinessDays(date: Date, days: number) {
@@ -74,6 +81,8 @@ export default function Home() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+
+  const [newNote, setNewNote] = useState("");
 
   const [form, setForm] = useState({
     name: "",
@@ -121,6 +130,7 @@ export default function Home() {
       ...form,
       maintenanceDate: nextDate.toISOString(),
       ownerId: authUser.uid,
+      history: [],
     });
 
     setForm({
@@ -134,6 +144,22 @@ export default function Home() {
     });
 
     fetchClients(authUser.uid);
+  };
+
+  const addHistoryNote = async () => {
+    if (!selectedClient || !newNote.trim()) return;
+
+    const entry: HistoryEntry = {
+      date: new Date().toISOString(),
+      note: newNote,
+    };
+
+    await updateDoc(doc(db, "clients", selectedClient.id!), {
+      history: arrayUnion(entry),
+    });
+
+    setNewNote("");
+    fetchClients(authUser!.uid);
   };
 
   const confirmMaintenance = async (client: Client) => {
@@ -156,132 +182,48 @@ export default function Home() {
   const getDaysDiff = (date: string) =>
     Math.ceil((new Date(date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
 
-  const stats = useMemo(() => {
-    let expired = 0;
-    let soon = 0;
-    let upcoming = 0;
-
-    clients.forEach((c) => {
-      const diff = getDaysDiff(c.maintenanceDate);
-      if (diff <= 0) expired++;
-      else if (diff <= 7) soon++;
-      else if (diff <= 14) upcoming++;
-    });
-
-    return { expired, soon, upcoming };
-  }, [clients]);
-
-  const getCardColor = (date: string) => {
-    const diff = getDaysDiff(date);
-    if (diff <= 0) return "bg-red-700";
-    if (diff <= 7) return "bg-orange-600";
-    if (diff <= 14) return "bg-yellow-400 text-black";
-    return "bg-green-700";
-  };
-
-  if (!authReady) return <div className="p-6 text-black bg-white min-h-screen">Caricamento...</div>;
+  if (!authReady) return <div style={{backgroundColor:'#fff',color:'#000'}} className="p-6 min-h-screen">Caricamento...</div>;
 
   if (!authUser) {
     return (
-      <div style={{backgroundColor:'#ffffff', color:'#000000'}} className="p-6 max-w-sm mx-auto space-y-4 bg-white text-black min-h-screen">
+      <div style={{backgroundColor:'#fff',color:'#000'}} className="p-6 max-w-sm mx-auto space-y-4 min-h-screen">
         <h1 className="text-xl font-bold text-center">Accesso Gestionale</h1>
 
-        <input
-          className="w-full border-2 border-black p-3 rounded text-black bg-white"
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-        />
+        <input className="w-full border-2 border-black p-3 rounded" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
+        <input type="password" className="w-full border-2 border-black p-3 rounded" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} />
 
-        <input
-          type="password"
-          className="w-full border-2 border-black p-3 rounded text-black bg-white"
-          placeholder="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
-
-        <button
-          onClick={async () => {
-            try {
-              await signInWithEmailAndPassword(auth, email, password);
-            } catch {
-              alert("Credenziali errate");
-            }
-          }}
-          className="w-full bg-blue-700 text-white p-3 rounded font-bold"
-        >
-          Accedi
-        </button>
+        <button onClick={async () => {
+          try { await signInWithEmailAndPassword(auth, email, password); }
+          catch { alert("Credenziali errate"); }
+        }} className="w-full bg-blue-700 text-white p-3 rounded font-bold">Accedi</button>
       </div>
     );
   }
 
   if (!selectedClient) {
     return (
-      <div style={{backgroundColor:'#ffffff', color:'#000000'}} className="p-4 max-w-3xl mx-auto space-y-4 bg-white text-black min-h-screen">
+      <div style={{backgroundColor:'#fff',color:'#000'}} className="p-4 max-w-3xl mx-auto space-y-4 min-h-screen">
         <div className="flex justify-between items-center">
           <h1 className="text-xl font-bold">Gestionale Manutenzioni</h1>
-          <button
-            onClick={() => signOut(auth)}
-            className="text-sm font-bold text-red-700"
-          >
-            Logout
-          </button>
+          <button onClick={() => signOut(auth)} className="text-red-700 font-bold">Logout</button>
         </div>
 
-        <div className="grid grid-cols-3 gap-2 text-sm font-bold text-white">
-          <div className="bg-red-700 p-3 rounded text-center">🔴 {stats.expired}</div>
-          <div className="bg-orange-600 p-3 rounded text-center">🟠 {stats.soon}</div>
-          <div className="bg-yellow-400 text-black p-3 rounded text-center">🟡 {stats.upcoming}</div>
-        </div>
-
-        <input
-          className="w-full border-2 border-black p-3 rounded text-black bg-white"
-          placeholder="Cerca cliente..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+        <input className="w-full border-2 border-black p-3 rounded" placeholder="Cerca cliente..." value={search} onChange={(e) => setSearch(e.target.value)} />
 
         <div className="space-y-3">
           {clients
             .filter((c) => c.name.toLowerCase().includes(search.toLowerCase()))
-            .sort(
-              (a, b) =>
-                new Date(a.maintenanceDate).getTime() -
-                new Date(b.maintenanceDate).getTime()
-            )
             .map((client) => (
-              <div
-                key={client.id}
-                onClick={() => setSelectedClient(client)}
-                className={`p-4 rounded text-white text-sm font-bold ${getCardColor(client.maintenanceDate)}`}
-              >
+              <div key={client.id} onClick={() => setSelectedClient(client)} className="p-4 bg-green-700 text-white rounded font-bold">
                 {client.code} - {client.name}
-                <div className="text-xs">
-                  Prox manut.: {new Date(client.maintenanceDate).toLocaleDateString()} ({getDaysDiff(client.maintenanceDate)} gg)
-                </div>
               </div>
             ))}
         </div>
 
         <div className="border-2 border-black p-4 rounded space-y-3">
           <h2 className="text-lg font-bold">Nuovo Cliente</h2>
-
           <input className="w-full border-2 border-black p-3 rounded" placeholder="Nome" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-          <input className="w-full border-2 border-black p-3 rounded" placeholder="Telefono" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
-          <input className="w-full border-2 border-black p-3 rounded" placeholder="Email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
-          <input className="w-full border-2 border-black p-3 rounded" placeholder="Indirizzo" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} />
-          <textarea className="w-full border-2 border-black p-3 rounded" placeholder="Lavoro" value={form.job} onChange={(e) => setForm({ ...form, job: e.target.value })} />
-
-          <div className="flex gap-2">
-            <input type="number" className="w-1/2 border-2 border-black p-3 rounded" value={form.intervalValue} onChange={(e) => setForm({ ...form, intervalValue: Number(e.target.value) })} />
-            <select className="w-1/2 border-2 border-black p-3 rounded" value={form.intervalType} onChange={(e) => setForm({ ...form, intervalType: e.target.value as "days" | "months" })}>
-              <option value="months">Mesi</option>
-              <option value="days">Giorni</option>
-            </select>
-          </div>
-
+          <textarea className="w-full border-2 border-black p-3 rounded" placeholder="Tipo lavoro" value={form.job} onChange={(e) => setForm({ ...form, job: e.target.value })} />
           <button onClick={addClient} className="w-full bg-green-700 text-white p-3 rounded font-bold">Salva</button>
         </div>
       </div>
@@ -289,22 +231,37 @@ export default function Home() {
   }
 
   return (
-    <div style={{backgroundColor:'#ffffff', color:'#000000'}} className="p-4 max-w-3xl mx-auto space-y-4 bg-white text-black min-h-screen">
+    <div style={{backgroundColor:'#fff',color:'#000'}} className="p-4 max-w-3xl mx-auto space-y-4 min-h-screen">
       <button onClick={() => setSelectedClient(null)} className="bg-gray-800 text-white p-3 rounded font-bold">← Torna</button>
 
       <div className="border-2 border-black p-4 rounded space-y-4">
         <h2 className="text-xl font-bold">{selectedClient.code} - {selectedClient.name}</h2>
 
-        <div className="grid grid-cols-2 gap-3">
-          <a href={`tel:${selectedClient.phone}`} className="bg-blue-700 text-white p-3 rounded text-center font-bold">📞 Chiama</a>
-          <a href={`https://wa.me/${selectedClient.phone}`} target="_blank" className="bg-green-700 text-white p-3 rounded text-center font-bold">💬 WhatsApp</a>
-          <a href={`mailto:${selectedClient.email}`} className="bg-gray-800 text-white p-3 rounded text-center font-bold">✉️ Email</a>
-          <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(selectedClient.address)}`} target="_blank" className="bg-yellow-400 text-black p-3 rounded text-center font-bold">📍 Maps</a>
+        <div>
+          <strong>Tipo lavoro eseguito:</strong>
+          <p className="mt-1">{selectedClient.job}</p>
         </div>
 
-        <p className="text-lg font-bold text-red-700">
-          Prox manut.: {new Date(selectedClient.maintenanceDate).toLocaleDateString()} ({getDaysDiff(selectedClient.maintenanceDate)} gg)
-        </p>
+        <div>
+          <strong>Storico interventi / Note:</strong>
+          <div className="space-y-2 mt-2">
+            {selectedClient.history && selectedClient.history.map((h, i) => (
+              <div key={i} className="border p-2 rounded">
+                <div className="text-xs text-gray-600">{new Date(h.date).toLocaleString()}</div>
+                <div>{h.note}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <textarea
+          className="w-full border-2 border-black p-3 rounded"
+          placeholder="Aggiungi nuova nota / operazione / misurazione"
+          value={newNote}
+          onChange={(e) => setNewNote(e.target.value)}
+        />
+
+        <button onClick={addHistoryNote} className="w-full bg-blue-700 text-white p-3 rounded font-bold">Aggiungi nota</button>
 
         <button onClick={() => confirmMaintenance(selectedClient)} className="w-full bg-green-700 text-white p-3 rounded font-bold">Conferma manutenzione</button>
         <button onClick={() => deleteClient(selectedClient)} className="w-full bg-red-700 text-white p-3 rounded font-bold">Elimina cliente</button>
