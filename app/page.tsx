@@ -10,9 +10,17 @@ import {
   updateDoc,
   deleteDoc,
   doc,
+  query,
+  where,
 } from "firebase/firestore";
+import {
+  getAuth,
+  signInWithEmailAndPassword,
+  signOut,
+  onAuthStateChanged,
+} from "firebase/auth";
 
-// FIREBASE CONFIG
+// 🔥 FIREBASE CONFIG
 const firebaseConfig = {
   apiKey: "AIzaSyDnduh9NKI2AqTn4rFC0kKTsIGCm6Ip7SY",
   authDomain: "gestionale-rudy.firebaseapp.com",
@@ -24,6 +32,7 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
+const auth = getAuth(app);
 
 interface Client {
   id?: string;
@@ -36,9 +45,10 @@ interface Client {
   intervalValue: number;
   intervalType: "days" | "months";
   maintenanceDate: string;
+  ownerId: string;
 }
 
-// CALCOLO GIORNI LAVORATIVI
+// 🔧 CALCOLO GIORNI LAVORATIVI
 function addBusinessDays(date: Date, days: number) {
   const result = new Date(date);
   let added = 0;
@@ -56,9 +66,13 @@ function calculateNextDate(value: number, type: "days" | "months") {
 }
 
 export default function Home() {
+  const [user, setUser] = useState<any>(null);
+  const [loadingAuth, setLoadingAuth] = useState(true);
   const [clients, setClients] = useState<Client[]>([]);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [search, setSearch] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
 
   const [form, setForm] = useState({
     name: "",
@@ -70,9 +84,19 @@ export default function Home() {
     intervalType: "months" as "days" | "months",
   });
 
-  // CARICA CLIENTI
-  const fetchClients = async () => {
-    const snapshot = await getDocs(collection(db, "clients"));
+  // 🔐 AUTH LISTENER
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (u) => {
+      setUser(u);
+      setLoadingAuth(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // 📥 FETCH CLIENTI
+  const fetchClients = async (uid: string) => {
+    const q = query(collection(db, "clients"), where("ownerId", "==", uid));
+    const snapshot = await getDocs(q);
     const list: Client[] = [];
     snapshot.forEach((docSnap) => {
       list.push({ id: docSnap.id, ...(docSnap.data() as Client) });
@@ -81,24 +105,22 @@ export default function Home() {
   };
 
   useEffect(() => {
-    fetchClients();
-  }, []);
+    if (user) fetchClients(user.uid);
+  }, [user]);
 
   const generateCode = () =>
     "A" + (clients.length + 1).toString().padStart(3, "0");
 
   const addClient = async () => {
-    if (!form.name) return;
+    if (!form.name || !user) return;
 
-    const nextDate = calculateNextDate(
-      form.intervalValue,
-      form.intervalType
-    );
+    const nextDate = calculateNextDate(form.intervalValue, form.intervalType);
 
     await addDoc(collection(db, "clients"), {
       code: generateCode(),
       ...form,
       maintenanceDate: nextDate.toISOString(),
+      ownerId: user.uid,
     });
 
     setForm({
@@ -111,7 +133,7 @@ export default function Home() {
       intervalType: "months",
     });
 
-    fetchClients();
+    fetchClients(user.uid);
   };
 
   const confirmMaintenance = async (client: Client) => {
@@ -124,14 +146,14 @@ export default function Home() {
       maintenanceDate: newDate.toISOString(),
     });
 
-    fetchClients();
+    fetchClients(user.uid);
   };
 
   const deleteClient = async (client: Client) => {
     if (!confirm("Eliminare questo cliente?")) return;
     await deleteDoc(doc(db, "clients", client.id!));
+    fetchClients(user.uid);
     setSelectedClient(null);
-    fetchClients();
   };
 
   const getDaysDiff = (date: string) =>
@@ -139,21 +161,6 @@ export default function Home() {
       (new Date(date).getTime() - new Date().getTime()) /
         (1000 * 60 * 60 * 24)
     );
-
-  const stats = useMemo(() => {
-    let expired = 0;
-    let soon = 0;
-    let upcoming = 0;
-
-    clients.forEach((c) => {
-      const diff = getDaysDiff(c.maintenanceDate);
-      if (diff <= 0) expired++;
-      else if (diff <= 7) soon++;
-      else if (diff <= 14) upcoming++;
-    });
-
-    return { expired, soon, upcoming };
-  }, [clients]);
 
   const getCardColor = (date: string) => {
     const diff = getDaysDiff(date);
@@ -163,28 +170,62 @@ export default function Home() {
     return "bg-green-600";
   };
 
-  // ================= HOME =================
+  // ⏳ LOADING
+  if (loadingAuth) return <div className="p-4">Caricamento...</div>;
+
+  // 🔐 LOGIN
+  if (!user) {
+    return (
+      <div className="p-6 max-w-sm mx-auto space-y-4 bg-white min-h-screen">
+        <h1 className="text-lg font-bold text-center">Accesso Gestionale</h1>
+
+        <input
+          className="w-full border p-2 rounded"
+          placeholder="Email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+        />
+
+        <input
+          type="password"
+          className="w-full border p-2 rounded"
+          placeholder="Password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+        />
+
+        <button
+          onClick={async () => {
+            try {
+              await signInWithEmailAndPassword(auth, email, password);
+            } catch {
+              alert("Credenziali errate");
+            }
+          }}
+          className="w-full bg-blue-600 text-white p-2 rounded font-bold"
+        >
+          Accedi
+        </button>
+      </div>
+    );
+  }
+
+  // 🏠 HOME
   if (!selectedClient) {
     return (
-      <div className="p-4 max-w-3xl mx-auto space-y-4 bg-white min-h-screen text-black">
-        <h1 className="text-xl font-bold text-center">
-          Gestionale Manutenzioni
-        </h1>
-
-        <div className="grid grid-cols-3 gap-2 text-white text-xs font-bold">
-          <div className="bg-red-600 p-2 rounded text-center">
-            🔴 {stats.expired}
-          </div>
-          <div className="bg-orange-500 p-2 rounded text-center">
-            🟠 {stats.soon}
-          </div>
-          <div className="bg-yellow-400 text-black p-2 rounded text-center">
-            🟡 {stats.upcoming}
-          </div>
+      <div className="p-4 max-w-3xl mx-auto space-y-4 bg-white min-h-screen">
+        <div className="flex justify-between items-center">
+          <h1 className="text-lg font-bold">Gestionale Manutenzioni</h1>
+          <button
+            onClick={() => signOut(auth)}
+            className="text-sm text-red-600 underline"
+          >
+            Logout
+          </button>
         </div>
 
         <input
-          className="w-full border-2 border-black p-2 rounded text-sm"
+          className="w-full border p-2 rounded text-sm"
           placeholder="Cerca cliente..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
@@ -220,7 +261,7 @@ export default function Home() {
             ))}
         </div>
 
-        <div className="border-2 border-black p-3 rounded space-y-2">
+        <div className="border p-3 rounded space-y-2">
           <h2 className="text-sm font-bold">Nuovo Cliente</h2>
 
           <input
@@ -294,10 +335,9 @@ export default function Home() {
     );
   }
 
-  // ================= DETTAGLIO =================
-
+  // 📋 DETTAGLIO CLIENTE
   return (
-    <div className="p-4 max-w-3xl mx-auto space-y-4 bg-white min-h-screen text-black">
+    <div className="p-4 max-w-3xl mx-auto space-y-4 bg-white min-h-screen">
       <button
         onClick={() => setSelectedClient(null)}
         className="bg-gray-700 text-white p-2 rounded text-sm"
@@ -305,7 +345,7 @@ export default function Home() {
         ← Torna
       </button>
 
-      <div className="border-2 border-black p-3 rounded space-y-3">
+      <div className="border p-3 rounded space-y-3">
         <h2 className="text-lg font-bold">
           {selectedClient.code} - {selectedClient.name}
         </h2>
