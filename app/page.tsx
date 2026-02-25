@@ -30,7 +30,6 @@ const firebaseConfig = {
   appId: "1:679882450882:web:85857ff10ae54794a5585b",
 };
 
-// Initialize Firebase only once
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
 const db = getFirestore(app);
 
@@ -67,6 +66,8 @@ function calculateNextDate(value: number, type: "days" | "months") {
 export default function Home() {
   const [authUser, setAuthUser] = useState<User | null>(null);
   const [authReady, setAuthReady] = useState(false);
+  const [auth, setAuth] = useState<any>(null);
+
   const [clients, setClients] = useState<Client[]>([]);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [search, setSearch] = useState("");
@@ -84,9 +85,6 @@ export default function Home() {
     intervalType: "months" as "days" | "months",
   });
 
-  const [auth, setAuth] = useState<any>(null);
-
-  // ✅ Initialize Auth in useEffect (client-side only)
   useEffect(() => {
     const firebaseAuth = getAuth(app);
     setAuth(firebaseAuth);
@@ -94,10 +92,9 @@ export default function Home() {
     const unsubscribe = onAuthStateChanged(firebaseAuth, (user) => {
       setAuthUser(user);
       setAuthReady(true);
-      if (user) {
-        fetchClients(user.uid);
-      }
+      if (user) fetchClients(user.uid);
     });
+
     return () => unsubscribe();
   }, []);
 
@@ -117,10 +114,7 @@ export default function Home() {
   const addClient = async () => {
     if (!form.name || !authUser) return;
 
-    const nextDate = calculateNextDate(
-      form.intervalValue,
-      form.intervalType
-    );
+    const nextDate = calculateNextDate(form.intervalValue, form.intervalType);
 
     await addDoc(collection(db, "clients"), {
       code: generateCode(),
@@ -147,9 +141,11 @@ export default function Home() {
       client.intervalValue,
       client.intervalType
     );
+
     await updateDoc(doc(db, "clients", client.id!), {
       maintenanceDate: newDate.toISOString(),
     });
+
     fetchClients(authUser!.uid);
   };
 
@@ -181,9 +177,16 @@ export default function Home() {
     return { expired, soon, upcoming };
   }, [clients]);
 
-  if (!authReady) return <div>Caricamento...</div>;
+  const getCardColor = (date: string) => {
+    const diff = getDaysDiff(date);
+    if (diff <= 0) return "bg-red-600";
+    if (diff <= 7) return "bg-orange-500";
+    if (diff <= 14) return "bg-yellow-400 text-black";
+    return "bg-green-600";
+  };
 
-  // 🔐 Login Page
+  if (!authReady) return <div className="p-4">Caricamento...</div>;
+
   if (!authUser) {
     return (
       <div className="p-6 max-w-sm mx-auto space-y-4 bg-white min-h-screen">
@@ -220,11 +223,10 @@ export default function Home() {
     );
   }
 
-  // 🏠 Main App
   if (!selectedClient) {
     return (
       <div className="p-4 max-w-3xl mx-auto space-y-4 bg-white min-h-screen">
-        <div className="flex justify-between">
+        <div className="flex justify-between items-center">
           <h1 className="text-lg font-bold">Gestionale Manutenzioni</h1>
           <button
             onClick={() => signOut(auth)}
@@ -235,24 +237,180 @@ export default function Home() {
         </div>
 
         <div className="grid grid-cols-3 gap-2 text-xs font-bold text-white">
-          <div className="bg-red-600 p-2 rounded text-center">
-            🔴 {stats.expired}
-          </div>
-          <div className="bg-orange-500 p-2 rounded text-center">
-            🟠 {stats.soon}
-          </div>
-          <div className="bg-yellow-400 text-black p-2 rounded text-center">
-            🟡 {stats.upcoming}
-          </div>
+          <div className="bg-red-600 p-2 rounded text-center">🔴 {stats.expired}</div>
+          <div className="bg-orange-500 p-2 rounded text-center">🟠 {stats.soon}</div>
+          <div className="bg-yellow-400 text-black p-2 rounded text-center">🟡 {stats.upcoming}</div>
         </div>
 
         <input
           className="w-full border p-2 rounded text-sm"
           placeholder="Cerca cliente..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
         />
+
+        <div className="space-y-2">
+          {clients
+            .filter((c) => c.name.toLowerCase().includes(search.toLowerCase()))
+            .sort(
+              (a, b) =>
+                new Date(a.maintenanceDate).getTime() -
+                new Date(b.maintenanceDate).getTime()
+            )
+            .map((client) => (
+              <div
+                key={client.id}
+                onClick={() => setSelectedClient(client)}
+                className={`p-3 rounded text-white text-sm font-semibold ${getCardColor(
+                  client.maintenanceDate
+                )}`}
+              >
+                {client.code} - {client.name}
+                <div className="text-xs">
+                  Prox manut.: {new Date(client.maintenanceDate).toLocaleDateString()} ({getDaysDiff(client.maintenanceDate)} gg)
+                </div>
+              </div>
+            ))}
+        </div>
+
+        <div className="border p-3 rounded space-y-2">
+          <h2 className="text-sm font-bold">Nuovo Cliente</h2>
+
+          <input
+            className="w-full border p-2 rounded text-sm"
+            placeholder="Nome"
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+          />
+
+          <input
+            className="w-full border p-2 rounded text-sm"
+            placeholder="Telefono"
+            value={form.phone}
+            onChange={(e) => setForm({ ...form, phone: e.target.value })}
+          />
+
+          <input
+            className="w-full border p-2 rounded text-sm"
+            placeholder="Email"
+            value={form.email}
+            onChange={(e) => setForm({ ...form, email: e.target.value })}
+          />
+
+          <input
+            className="w-full border p-2 rounded text-sm"
+            placeholder="Indirizzo"
+            value={form.address}
+            onChange={(e) => setForm({ ...form, address: e.target.value })}
+          />
+
+          <textarea
+            className="w-full border p-2 rounded text-sm"
+            placeholder="Lavoro"
+            value={form.job}
+            onChange={(e) => setForm({ ...form, job: e.target.value })}
+          />
+
+          <div className="flex gap-2">
+            <input
+              type="number"
+              className="w-1/2 border p-2 rounded text-sm"
+              value={form.intervalValue}
+              onChange={(e) =>
+                setForm({ ...form, intervalValue: Number(e.target.value) })
+              }
+            />
+
+            <select
+              className="w-1/2 border p-2 rounded text-sm"
+              value={form.intervalType}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  intervalType: e.target.value as "days" | "months",
+                })
+              }
+            >
+              <option value="months">Mesi</option>
+              <option value="days">Giorni</option>
+            </select>
+          </div>
+
+          <button
+            onClick={addClient}
+            className="w-full bg-green-600 text-white p-2 rounded text-sm font-bold"
+          >
+            Salva
+          </button>
+        </div>
       </div>
     );
   }
 
-  return <div>Pagina cliente selezionato (da completare)</div>;
+  return (
+    <div className="p-4 max-w-3xl mx-auto space-y-4 bg-white min-h-screen">
+      <button
+        onClick={() => setSelectedClient(null)}
+        className="bg-gray-700 text-white p-2 rounded text-sm"
+      >
+        ← Torna
+      </button>
+
+      <div className="border p-3 rounded space-y-3">
+        <h2 className="text-lg font-bold">
+          {selectedClient.code} - {selectedClient.name}
+        </h2>
+
+        <div className="grid grid-cols-2 gap-2">
+          <a
+            href={`tel:${selectedClient.phone}`}
+            className="bg-blue-600 text-white p-2 rounded text-center text-sm font-bold"
+          >
+            📞 Chiama
+          </a>
+
+          <a
+            href={`https://wa.me/${selectedClient.phone}`}
+            target="_blank"
+            className="bg-green-600 text-white p-2 rounded text-center text-sm font-bold"
+          >
+            💬 WhatsApp
+          </a>
+
+          <a
+            href={`mailto:${selectedClient.email}`}
+            className="bg-gray-700 text-white p-2 rounded text-center text-sm font-bold"
+          >
+            ✉️ Email
+          </a>
+
+          <a
+            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(selectedClient.address)}`}
+            target="_blank"
+            className="bg-yellow-400 text-black p-2 rounded text-center text-sm font-bold"
+          >
+            📍 Maps
+          </a>
+        </div>
+
+        <p className="text-sm font-bold text-red-600">
+          Prox manut.: {new Date(selectedClient.maintenanceDate).toLocaleDateString()} ({getDaysDiff(selectedClient.maintenanceDate)} gg)
+        </p>
+
+        <button
+          onClick={() => confirmMaintenance(selectedClient)}
+          className="w-full bg-green-600 text-white p-2 rounded text-sm font-bold"
+        >
+          Conferma manutenzione
+        </button>
+
+        <button
+          onClick={() => deleteClient(selectedClient)}
+          className="w-full bg-red-600 text-white p-2 rounded text-sm font-bold"
+        >
+          Elimina cliente
+        </button>
+      </div>
+    </div>
+  );
 }
