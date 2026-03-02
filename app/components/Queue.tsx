@@ -32,13 +32,15 @@ export default function Queue({ user, goBack, goDetail }: Props) {
         collection(db, "clients"),
         where("ownerId", "==", user.uid)
       );
+
       const snap = await getDocs(q);
+
       const list: Client[] = [];
-    snap.forEach((d) => {
-  const data = d.data() as Omit<Client, "id">;
-  list.push({ ...data, id: d.id });
-});
-      );
+
+      snap.forEach((d) => {
+        const data = d.data() as Omit<Client, "id">;
+        list.push({ ...data, id: d.id });
+      });
 
       list.sort(
         (a, b) =>
@@ -54,9 +56,11 @@ export default function Queue({ user, goBack, goDetail }: Props) {
 
   const getColor = (date: string) => {
     const diff = daysDiff(date);
+
     if (diff <= 0) return "bg-red-600 text-white";
     if (diff <= 7) return "bg-orange-500 text-white";
     if (diff <= 14) return "bg-yellow-400 text-black";
+
     return "bg-green-600 text-white";
   };
 
@@ -82,7 +86,8 @@ export default function Queue({ user, goBack, goDetail }: Props) {
               c.maintenanceDate
             )}`}
           >
-            {c.name} – {new Date(c.maintenanceDate).toLocaleDateString()} (
+            {c.name} –{" "}
+            {new Date(c.maintenanceDate).toLocaleDateString()} (
             {daysDiff(c.maintenanceDate)} gg)
           </div>
         ))}
