@@ -7,6 +7,7 @@ import {
   collection,
   addDoc,
   getDocs,
+  getDoc,
   updateDoc,
   deleteDoc,
   doc,
@@ -96,7 +97,7 @@ export default function Home() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  const [newClient, setNewClient] = useState({
+  const [form, setForm] = useState({
     name: "",
     phone: "",
     email: "",
@@ -120,7 +121,7 @@ export default function Home() {
     return () => unsub();
   }, []);
 
-  /* ================= DATA ================= */
+  /* ================= LOAD CLIENTS ================= */
 
   const loadClients = async (uid: string) => {
     const q = query(collection(db, "clients"), where("ownerId", "==", uid));
@@ -131,14 +132,16 @@ export default function Home() {
     setClients(list);
   };
 
+  /* ================= ADD CLIENT ================= */
+
   const addClient = async () => {
-    if (!user || !newClient.name.trim()) return;
+    if (!user || !form.name.trim()) return;
 
     const nextDate = calculateNextDate(intervalValue, intervalType);
 
     await addDoc(collection(db, "clients"), {
       code: "A" + (clients.length + 1).toString().padStart(3, "0"),
-      ...newClient,
+      ...form,
       maintenanceDate: nextDate.toISOString(),
       intervalValue,
       intervalType,
@@ -146,27 +149,44 @@ export default function Home() {
       history: [],
     });
 
-    setNewClient({ name: "", phone: "", email: "", address: "", job: "" });
+    setForm({ name: "", phone: "", email: "", address: "", job: "" });
     setIntervalValue(6);
     setIntervalType("months");
 
     loadClients(user.uid);
   };
 
+  /* ================= CONFIRM MAINTENANCE ================= */
+
   const confirmMaintenance = async (c: Client) => {
     const next = calculateNextDate(c.intervalValue, c.intervalType);
+
+    const maintenanceEntry: HistoryEntry = {
+      date: new Date().toISOString(),
+      note: "Manutenzione eseguita",
+    };
+
+    const updatedHistory = [...c.history, maintenanceEntry];
+
     await updateDoc(doc(db, "clients", c.id!), {
       maintenanceDate: next.toISOString(),
+      history: updatedHistory,
     });
+
+    setSelected({ ...c, maintenanceDate: next.toISOString(), history: updatedHistory });
     loadClients(user!.uid);
   };
+
+  /* ================= NOTES ================= */
 
   const addNote = async () => {
     if (!selected || !note.trim()) return;
 
     const updatedHistory = [...selected.history, { date: new Date().toISOString(), note }];
 
-    await updateDoc(doc(db, "clients", selected.id!), { history: updatedHistory });
+    await updateDoc(doc(db, "clients", selected.id!), {
+      history: updatedHistory,
+    });
 
     setSelected({ ...selected, history: updatedHistory });
     setNote("");
@@ -176,7 +196,7 @@ export default function Home() {
     if (!selected) return;
 
     const filtered = selected.history.filter(
-      h => !(h.date === entry.date && h.note === entry.note)
+      (h) => !(h.date === entry.date && h.note === entry.note)
     );
 
     await updateDoc(doc(db, "clients", selected.id!), { history: filtered });
@@ -192,12 +212,13 @@ export default function Home() {
 
   /* ================= LOGIN ================= */
 
-  if (!ready) return <div className="p-6 bg-white text-black">Caricamento...</div>;
+  if (!ready)
+    return <div style={{ background: "#fff", color: "#000" }} className="p-6">Caricamento...</div>;
 
   if (!user)
     return (
-      <div className="min-h-screen flex items-center justify-center bg-white text-black">
-        <div className="bg-white p-6 rounded shadow w-80 space-y-3 border">
+      <div style={{ background: "#fff", color: "#000" }} className="min-h-screen flex items-center justify-center">
+        <div className="border-2 border-black p-6 rounded w-80 space-y-3">
           <h1 className="font-bold text-lg text-center">Login</h1>
           <input className="border p-2 w-full" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
           <input type="password" className="border p-2 w-full" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} />
@@ -213,26 +234,34 @@ export default function Home() {
 
   if (!selected)
     return (
-      <div style={{ backgroundColor: "#ffffff", color: "#000000" }} className="min-h-screen p-6">
+      <div style={{ background: "#ffffff", color: "#000000" }} className="min-h-screen p-6">
         <div className="flex justify-between mb-4">
           <h1 className="font-bold text-xl">Gestionale Manutenzioni</h1>
           <button onClick={() => signOut(auth)} className="text-red-700 font-bold">Logout</button>
         </div>
 
-        <div className="grid grid-cols-3 gap-3 mb-4">
-          <div className="bg-red-700 text-white p-3 rounded font-bold text-center">
+        {/* CONTATORI */}
+        <div className="grid grid-cols-3 gap-4 mb-6">
+          <div className="bg-red-700 text-white p-4 rounded-xl text-center font-bold text-lg">
             🔴 {clients.filter(c => daysDiff(c.maintenanceDate) <= 0).length}
           </div>
-          <div className="bg-orange-500 text-white p-3 rounded font-bold text-center">
+          <div className="bg-orange-500 text-white p-4 rounded-xl text-center font-bold text-lg">
             🟠 {clients.filter(c => daysDiff(c.maintenanceDate) > 0 && daysDiff(c.maintenanceDate) <= 7).length}
           </div>
-          <div className="bg-yellow-400 text-black p-3 rounded font-bold text-center">
+          <div className="bg-yellow-400 text-black p-4 rounded-xl text-center font-bold text-lg">
             🟡 {clients.filter(c => daysDiff(c.maintenanceDate) > 7 && daysDiff(c.maintenanceDate) <= 14).length}
           </div>
         </div>
 
-        {clients.map(c => (
-          <div key={c.id} onClick={() => setSelected(c)} className="border p-3 mb-2 cursor-pointer rounded">
+        {clients.map((c) => (
+          <div
+            key={c.id}
+            onClick={async () => {
+              const snap = await getDoc(doc(db, "clients", c.id!));
+              if (snap.exists()) setSelected({ id: snap.id, ...(snap.data() as Client) });
+            }}
+            className="border-2 border-black p-3 mb-3 rounded cursor-pointer"
+          >
             <div className="font-bold">{c.code} - {c.name}</div>
             <div className="text-sm">
               {new Date(c.maintenanceDate).toLocaleDateString()} ({daysDiff(c.maintenanceDate)} gg)
@@ -240,20 +269,20 @@ export default function Home() {
           </div>
         ))}
 
-        <div className="border p-4 mt-6 space-y-2 rounded">
+        {/* NUOVO CLIENTE */}
+        <div className="border-2 border-black p-4 mt-6 space-y-2 rounded">
           <h2 className="font-bold">Nuovo Cliente</h2>
-          <input className="border p-2 w-full" placeholder="Nome" value={newClient.name} onChange={e => setNewClient({ ...newClient, name: e.target.value })} />
-          <input className="border p-2 w-full" placeholder="Telefono" value={newClient.phone} onChange={e => setNewClient({ ...newClient, phone: e.target.value })} />
-          <input className="border p-2 w-full" placeholder="Email" value={newClient.email} onChange={e => setNewClient({ ...newClient, email: e.target.value })} />
-          <input className="border p-2 w-full" placeholder="Indirizzo" value={newClient.address} onChange={e => setNewClient({ ...newClient, address: e.target.value })} />
-          <textarea className="border p-2 w-full" placeholder="Lavoro" value={newClient.job} onChange={e => setNewClient({ ...newClient, job: e.target.value })} />
+          <input className="border p-2 w-full" placeholder="Nome" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
+          <input className="border p-2 w-full" placeholder="Telefono" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} />
+          <input className="border p-2 w-full" placeholder="Email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
+          <input className="border p-2 w-full" placeholder="Indirizzo" value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} />
+          <textarea className="border p-2 w-full" placeholder="Lavoro svolto" value={form.job} onChange={e => setForm({ ...form, job: e.target.value })} />
 
           <div className="flex gap-2">
             <select value={intervalType} onChange={e => setIntervalType(e.target.value as any)} className="border p-2">
               <option value="months">Mesi</option>
               <option value="days">Giorni lavorativi</option>
             </select>
-
             <input type="number" value={intervalValue} min={1} onChange={e => setIntervalValue(Number(e.target.value))} className="border p-2 w-24" />
           </div>
 
@@ -265,16 +294,14 @@ export default function Home() {
   /* ================= DETAIL ================= */
 
   return (
-    <div style={{ backgroundColor: "#ffffff", color: "#000000" }} className="min-h-screen p-6">
+    <div style={{ background: "#ffffff", color: "#000000" }} className="min-h-screen p-6">
       <button onClick={() => setSelected(null)} className="mb-4 text-blue-700 font-bold">← Torna</button>
 
       <h2 className="font-bold text-xl mb-2">{selected.code} - {selected.name}</h2>
 
-      <div className="grid md:grid-cols-2 gap-2 mb-4">
-        <a href={`tel:${selected.phone}`} className="bg-blue-700 text-white p-2 text-center font-bold rounded">Chiama</a>
-        <a href={`https://wa.me/${selected.phone}`} target="_blank" className="bg-green-700 text-white p-2 text-center font-bold rounded">WhatsApp</a>
-        <a href={`mailto:${selected.email}`} className="bg-gray-700 text-white p-2 text-center font-bold rounded">Email</a>
-        <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(selected.address)}`} target="_blank" className="bg-yellow-400 text-black p-2 text-center font-bold rounded">Maps</a>
+      <div className="border-2 border-black p-3 rounded mb-4">
+        <div className="font-bold mb-1">Lavoro svolto:</div>
+        <div>{selected.job}</div>
       </div>
 
       <button className="bg-green-700 text-white w-full p-2 mb-4 font-bold rounded" onClick={() => confirmMaintenance(selected)}>
@@ -284,10 +311,15 @@ export default function Home() {
       <div>
         <h3 className="font-bold">Storico</h3>
         {selected.history.slice().sort((a,b)=>new Date(b.date).getTime()-new Date(a.date).getTime()).map((h,i)=> (
-          <div key={i} className="border p-3 mt-3 rounded">
+          <div key={i} className="border-2 border-black p-3 mt-3 rounded">
             <div className="flex justify-between">
               <div className="text-xs">{new Date(h.date).toLocaleString()}</div>
-              <button onClick={()=>deleteNote(h)} className="text-red-700 font-bold">🗑</button>
+              <button
+                  onClick={() => deleteNote(h)}
+                  className="bg-red-700 text-white px-3 py-1 rounded font-bold"
+                >
+                  Cancella
+                </button>
             </div>
             <div>{h.note}</div>
           </div>
