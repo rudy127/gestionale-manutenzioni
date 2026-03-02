@@ -34,9 +34,13 @@ export default function Dashboard({ user, goQueue, goDetail }: Props) {
       );
       const snap = await getDocs(q);
       const list: Client[] = [];
-      snap.forEach((d) =>
-        list.push({ id: d.id, ...(d.data() as Client) })
-      );
+snap.forEach((d) => {
+  const data = d.data() as Omit<Client, "id">;
+  snap.forEach((d) => {
+  const data = d.data() as Omit<Client, "id">;
+  list.push({ ...data, id: d.id });
+});;
+});
       setClients(list);
     };
     load();
