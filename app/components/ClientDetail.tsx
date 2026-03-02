@@ -56,8 +56,8 @@ export default function ClientDetail({ clientId, goBack }: Props) {
     const load = async () => {
       const snap = await getDoc(doc(db, "clients", clientId));
       if (snap.exists()) {
-        const data = snap.data() as Client;
-        setClient({ id: snap.id, ...data });
+        const data = snap.data() as Omit<Client, "id">;
+setClient({ ...data, id: snap.id });
         setIntervalValue(data.intervalValue);
         setIntervalType(data.intervalType);
       }
