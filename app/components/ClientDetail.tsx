@@ -5,6 +5,7 @@ import {
   doc,
   getDoc,
   updateDoc,
+  deleteDoc,
 } from "firebase/firestore";
 import { db } from "../page";
 import type { User } from "firebase/auth";
@@ -24,7 +25,7 @@ interface Client {
   maintenanceDate: string;
   intervalValue: number;
   intervalType: "months" | "days";
-  history: HistoryEntry[];
+  history?: HistoryEntry[];
 }
 
 interface Props {
@@ -33,210 +34,177 @@ interface Props {
   goBack: () => void;
 }
 
-function addBusinessDays(start: Date, days: number) {
-  const result = new Date(start);
-  let added = 0;
-  while (added < days) {
-    result.setDate(result.getDate() + 1);
-    const day = result.getDay();
-    if (day !== 0 && day !== 6) added++;
-  }
-  return result;
-}
-
-export default function ClientDetail({ clientId, goBack }: Props) {
+export default function ClientDetail({ user, clientId, goBack }: Props) {
   const [client, setClient] = useState<Client | null>(null);
-  const [note, setNote] = useState("");
-  const [manualDate, setManualDate] = useState("");
-  const [intervalValue, setIntervalValue] = useState(6);
-  const [intervalType, setIntervalType] = useState<"months" | "days">("months");
-  const [excludeWeekend, setExcludeWeekend] = useState(false);
+  const [newNote, setNewNote] = useState("");
 
   useEffect(() => {
     const load = async () => {
       const snap = await getDoc(doc(db, "clients", clientId));
       if (snap.exists()) {
-        const data = snap.data() as Omit<Client, "id">;
-setClient({ ...data, id: snap.id });
-        setIntervalValue(data.intervalValue);
-        setIntervalType(data.intervalType);
+        const data = snap.data() as Client;
+        setClient({ ...data, id: snap.id });
       }
     };
+
     load();
   }, [clientId]);
 
-  if (!client) return <div className="p-6">Caricamento...</div>;
+  if (!client) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white text-black">
+        Caricamento...
+      </div>
+    );
+  }
 
-  const saveMaintenance = async () => {
-    let nextDate: Date;
-
-    if (manualDate) {
-      nextDate = new Date(manualDate);
-    } else {
-      const base = new Date();
-      if (intervalType === "months") {
-        nextDate = new Date(base);
-        nextDate.setMonth(base.getMonth() + intervalValue);
-      } else {
-        nextDate = excludeWeekend
-          ? addBusinessDays(base, intervalValue)
-          : new Date(base.getTime() + intervalValue * 86400000);
-      }
-    }
-
-    const entry: HistoryEntry = {
-      date: new Date().toISOString(),
-      note: `Manutenzione aggiornata`,
-    };
-
-    const updatedHistory = [...(client.history || []), entry];
-
-    await updateDoc(doc(db, "clients", client.id), {
-      maintenanceDate: nextDate.toISOString(),
-      intervalValue,
-      intervalType,
-      history: updatedHistory,
-    });
-
-    setClient({
-      ...client,
-      maintenanceDate: nextDate.toISOString(),
-      intervalValue,
-      intervalType,
-      history: updatedHistory,
-    });
-
-    setManualDate("");
-  };
+  /* ================= AGGIUNGI NOTA ================= */
 
   const addNote = async () => {
-    if (!note.trim()) return;
+    if (!newNote.trim()) return;
 
-    const entry: HistoryEntry = {
-      date: new Date().toISOString(),
-      note,
-    };
+    const updatedHistory = [
+      ...(client.history || []),
+      {
+        date: new Date().toISOString(),
+        note: newNote,
+      },
+    ];
 
-    const updatedHistory = [...(client.history || []), entry];
-
-    await updateDoc(doc(db, "clients", client.id), {
+    await updateDoc(doc(db, "clients", clientId), {
       history: updatedHistory,
     });
 
     setClient({ ...client, history: updatedHistory });
-    setNote("");
+    setNewNote("");
   };
 
-  const deleteNote = async (entry: HistoryEntry) => {
-    const filtered = client.history.filter(
-      (h) => !(h.date === entry.date && h.note === entry.note)
-    );
+  /* ================= CANCELLA NOTA ================= */
 
-    await updateDoc(doc(db, "clients", client.id), {
-      history: filtered,
+  const deleteNote = async (index: number) => {
+    const updatedHistory = [...(client.history || [])];
+    updatedHistory.splice(index, 1);
+
+    await updateDoc(doc(db, "clients", clientId), {
+      history: updatedHistory,
     });
 
-    setClient({ ...client, history: filtered });
+    setClient({ ...client, history: updatedHistory });
+  };
+
+  /* ================= CONFERMA MANUTENZIONE ================= */
+
+  const confirmMaintenance = async () => {
+    const newDate = new Date();
+    if (client.intervalType === "months") {
+      newDate.setMonth(newDate.getMonth() + client.intervalValue);
+    } else {
+      newDate.setDate(newDate.getDate() + client.intervalValue);
+    }
+
+    await updateDoc(doc(db, "clients", clientId), {
+      maintenanceDate: newDate.toISOString(),
+    });
+
+    setClient({
+      ...client,
+      maintenanceDate: newDate.toISOString(),
+    });
+  };
+
+  /* ================= ELIMINA CLIENTE ================= */
+
+  const deleteClient = async () => {
+    const ok = confirm("Sei sicuro di voler eliminare questo cliente?");
+    if (!ok) return;
+
+    await deleteDoc(doc(db, "clients", clientId));
+    goBack();
   };
 
   return (
     <div className="min-h-screen bg-white text-black p-6 space-y-6">
       <button
         onClick={goBack}
-        className="bg-gray-800 text-white px-4 py-2 rounded font-bold"
+        className="bg-gray-800 text-white px-4 py-2 rounded"
       >
         ← Torna
       </button>
 
       <h1 className="text-2xl font-bold">{client.name}</h1>
 
-      <div className="border p-4 rounded space-y-2">
-        <div><strong>Lavoro svolto:</strong> {client.job}</div>
-        <div><strong>Prossima manutenzione:</strong> {new Date(client.maintenanceDate).toLocaleDateString()}</div>
+      <div className="space-y-2">
+        <p><strong>Telefono:</strong> {client.phone}</p>
+        <p><strong>Email:</strong> {client.email}</p>
+        <p><strong>Indirizzo:</strong> {client.address}</p>
+        <p><strong>Lavoro eseguito:</strong> {client.job}</p>
       </div>
 
-      <div className="border p-4 rounded space-y-3">
-        <h2 className="font-bold">Aggiorna Manutenzione</h2>
+      <div>
+        <p className="font-bold">
+          Prossima manutenzione:
+        </p>
+        <p>
+          {new Date(client.maintenanceDate).toLocaleDateString()}
+        </p>
+      </div>
 
-        <div className="flex gap-2">
-          <input
-            type="number"
-            value={intervalValue}
-            onChange={(e) => setIntervalValue(Number(e.target.value))}
-            className="border p-2 w-24"
-          />
-          <select
-            value={intervalType}
-            onChange={(e) => setIntervalType(e.target.value as any)}
-            className="border p-2"
+      <button
+        onClick={confirmMaintenance}
+        className="w-full bg-green-700 text-white py-3 rounded font-bold"
+      >
+        Conferma Manutenzione
+      </button>
+
+      {/* ================= STORICO ================= */}
+
+      <div className="mt-6">
+        <h2 className="text-xl font-bold mb-2">Storico Interventi</h2>
+
+        {(client.history || []).map((h, i) => (
+          <div
+            key={i}
+            className="border p-3 rounded mb-2 flex justify-between items-center"
           >
-            <option value="months">Mesi</option>
-            <option value="days">Giorni</option>
-          </select>
-        </div>
-
-        <div>
-          <label>Oppure data manuale:</label>
-          <input
-            type="date"
-            value={manualDate}
-            onChange={(e) => setManualDate(e.target.value)}
-            className="border p-2 w-full"
-          />
-        </div>
-
-        <div className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            checked={excludeWeekend}
-            onChange={(e) => setExcludeWeekend(e.target.checked)}
-          />
-          <span>Escludi weekend</span>
-        </div>
-
-        <button
-          onClick={saveMaintenance}
-          className="bg-green-700 text-white px-4 py-2 rounded font-bold"
-        >
-          Salva manutenzione
-        </button>
-      </div>
-
-      <div className="border p-4 rounded space-y-3">
-        <h2 className="font-bold">Storico</h2>
-
-        {(client.history || [])
-          .slice()
-          .reverse()
-          .map((h, i) => (
-            <div key={i} className="border p-3 rounded">
-              <div className="flex justify-between">
-                <span>{new Date(h.date).toLocaleString()}</span>
-                <button
-                  onClick={() => deleteNote(h)}
-                  className="bg-red-600 text-white px-2 py-1 rounded"
-                >
-                  Cancella
-                </button>
+            <div>
+              <div className="text-sm text-gray-600">
+                {new Date(h.date).toLocaleString()}
               </div>
               <div>{h.note}</div>
             </div>
-          ))}
+
+            <button
+              onClick={() => deleteNote(i)}
+              className="bg-red-600 text-white px-3 py-1 rounded"
+            >
+              X
+            </button>
+          </div>
+        ))}
 
         <textarea
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-          className="border p-2 w-full"
-          placeholder="Aggiungi nota"
+          value={newNote}
+          onChange={(e) => setNewNote(e.target.value)}
+          className="w-full border-2 border-black p-2 rounded mt-2"
+          placeholder="Aggiungi nota / lavoro / misurazioni"
         />
 
         <button
           onClick={addNote}
-          className="bg-blue-700 text-white px-4 py-2 rounded font-bold"
+          className="w-full bg-blue-700 text-white py-2 rounded mt-2"
         >
           Aggiungi Nota
         </button>
       </div>
+
+      {/* ================= ELIMINA CLIENTE ================= */}
+
+      <button
+        onClick={deleteClient}
+        className="w-full bg-red-800 text-white py-3 rounded font-bold mt-6"
+      >
+        ELIMINA CLIENTE
+      </button>
     </div>
   );
 }
