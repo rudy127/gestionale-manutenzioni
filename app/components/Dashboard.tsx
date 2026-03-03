@@ -2,177 +2,123 @@
 
 import { useEffect, useState } from "react";
 import {
-  doc,
-  getDoc,
-  updateDoc,
-  deleteDoc,
-  arrayUnion,
+  collection,
+  getDocs,
+  query,
+  where,
+  addDoc,
 } from "firebase/firestore";
 import { db } from "../page";
 import type { User } from "firebase/auth";
 
-interface HistoryEntry {
-  date: string;
-  note: string;
-}
-
 interface Client {
   id: string;
   name: string;
-  phone: string;
-  email: string;
-  address: string;
-  job: string;
   maintenanceDate: string;
   intervalValue: number;
   intervalType: "months" | "days";
-  history?: HistoryEntry[];
+  ownerId: string;
 }
 
 interface Props {
   user: User;
-  clientId: string;
-  goBack: () => void;
+  goQueue: () => void;
+  goDetail: (id: string) => void;
+  logout: () => void;
 }
 
-function calculateNextDate(value: number, type: "months" | "days") {
-  const base = new Date();
+const daysDiff = (date: string) =>
+  Math.ceil(
+    (new Date(date).getTime() - new Date().getTime()) /
+      (1000 * 60 * 60 * 24)
+  );
 
-  if (type === "months") {
-    const d = new Date(base);
-    d.setMonth(base.getMonth() + value);
-    return d;
-  }
-
-  return new Date(base.getTime() + value * 86400000);
-}
-
-export default function ClientDetail({
-  clientId,
-  goBack,
+export default function Dashboard({
+  user,
+  goQueue,
+  goDetail,
+  logout,
 }: Props) {
-  const [client, setClient] = useState<Client | null>(null);
-  const [newNote, setNewNote] = useState("");
-
-  const loadClient = async () => {
-    const snap = await getDoc(doc(db, "clients", clientId));
-
-    if (snap.exists()) {
-      const data = snap.data() as Omit<Client, "id">;
-      setClient({ ...data, id: snap.id });
-    }
-  };
+  const [clients, setClients] = useState<Client[]>([]);
 
   useEffect(() => {
-    loadClient();
-  }, [clientId]);
+    const load = async () => {
+      const q = query(
+        collection(db, "clients"),
+        where("ownerId", "==", user.uid)
+      );
 
-  if (!client) return <div className="p-6">Caricamento...</div>;
+      const snap = await getDocs(q);
+      const list: Client[] = [];
 
-  const addNote = async () => {
-    if (!newNote.trim()) return;
+      snap.forEach((d) => {
+        const data = d.data() as Omit<Client, "id">;
+        list.push({ ...data, id: d.id });
+      });
 
-    const entry: HistoryEntry = {
-      date: new Date().toISOString(),
-      note: newNote,
+      setClients(list);
     };
 
-    await updateDoc(doc(db, "clients", client.id), {
-      history: arrayUnion(entry),
-    });
+    load();
+  }, [user]);
 
-    setNewNote("");
-    loadClient();
-  };
-
-  const confirmMaintenance = async () => {
-    const nextDate = calculateNextDate(
-      client.intervalValue,
-      client.intervalType
-    );
-
-    await updateDoc(doc(db, "clients", client.id), {
-      maintenanceDate: nextDate.toISOString(),
-    });
-
-    loadClient();
-  };
-
-  const deleteClient = async () => {
-    const ok = confirm(
-      "Sei sicuro di voler eliminare definitivamente questo cliente?"
-    );
-
-    if (!ok) return;
-
-    await deleteDoc(doc(db, "clients", client.id));
-
-    goBack();
-  };
+  const red = clients.filter((c) => daysDiff(c.maintenanceDate) <= 0).length;
+  const orange = clients.filter(
+    (c) =>
+      daysDiff(c.maintenanceDate) > 0 &&
+      daysDiff(c.maintenanceDate) <= 7
+  ).length;
+  const yellow = clients.filter(
+    (c) =>
+      daysDiff(c.maintenanceDate) > 7 &&
+      daysDiff(c.maintenanceDate) <= 14
+  ).length;
 
   return (
     <div className="min-h-screen bg-white text-black p-6 space-y-6">
-      <button
-        onClick={goBack}
-        className="bg-gray-800 text-white px-4 py-2 rounded font-bold"
-      >
-        ← Torna
-      </button>
-
-      <h1 className="text-2xl font-bold">{client.name}</h1>
-
-      <div className="space-y-2">
-        <div><strong>Telefono:</strong> {client.phone}</div>
-        <div><strong>Email:</strong> {client.email}</div>
-        <div><strong>Indirizzo:</strong> {client.address}</div>
-        <div><strong>Lavoro svolto:</strong> {client.job}</div>
-      </div>
-
-      <div>
-        <strong>Prossima manutenzione:</strong>{" "}
-        {new Date(client.maintenanceDate).toLocaleDateString()}
-      </div>
-
-      <button
-        onClick={confirmMaintenance}
-        className="bg-green-700 text-white px-4 py-2 rounded font-bold w-full"
-      >
-        Conferma Manutenzione
-      </button>
-
-      <div className="border p-4 rounded space-y-3">
-        <h2 className="font-bold">Storico interventi</h2>
-
-        {client.history?.map((h, i) => (
-          <div key={i} className="border p-2 rounded">
-            <div className="text-xs text-gray-600">
-              {new Date(h.date).toLocaleString()}
-            </div>
-            <div>{h.note}</div>
-          </div>
-        ))}
-
-        <textarea
-          className="border p-2 w-full"
-          placeholder="Aggiungi nota"
-          value={newNote}
-          onChange={(e) => setNewNote(e.target.value)}
-        />
+      <div className="flex justify-between items-center">
+        <h1 className="text-2xl font-bold">Dashboard</h1>
 
         <button
-          onClick={addNote}
-          className="bg-blue-700 text-white px-4 py-2 rounded font-bold w-full"
+          onClick={logout}
+          className="bg-red-600 text-white px-4 py-2 rounded font-bold"
         >
-          Aggiungi Nota
+          Logout
         </button>
       </div>
 
+      <div className="grid grid-cols-3 gap-4">
+        <div className="bg-red-700 text-white p-4 rounded-xl text-center font-bold">
+          🔴 {red}
+        </div>
+
+        <div className="bg-orange-500 text-white p-4 rounded-xl text-center font-bold">
+          🟠 {orange}
+        </div>
+
+        <div className="bg-yellow-400 text-black p-4 rounded-xl text-center font-bold">
+          🟡 {yellow}
+        </div>
+      </div>
+
       <button
-        onClick={deleteClient}
-        className="bg-red-700 text-white px-4 py-2 rounded font-bold w-full"
+        onClick={goQueue}
+        className="bg-blue-700 text-white px-4 py-2 rounded font-bold"
       >
-        Elimina Cliente
+        Vai alla Coda Manutenzioni
       </button>
+
+      <div className="space-y-2">
+        {clients.map((c) => (
+          <div
+            key={c.id}
+            onClick={() => goDetail(c.id)}
+            className="p-3 bg-green-700 text-white rounded cursor-pointer font-bold"
+          >
+            {c.name}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
