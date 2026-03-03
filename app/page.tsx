@@ -11,7 +11,7 @@ import {
   type User,
 } from "firebase/auth";
 
-import Dashboard from "./components/Dashboard";
+import Dashboard from "./components/DashboardMain";
 import Queue from "./components/Queue";
 import ClientDetail from "./components/ClientDetail";
 
