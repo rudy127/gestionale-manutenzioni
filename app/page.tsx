@@ -30,83 +30,87 @@ const app =
   getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
 
 export const db = getFirestore(app);
-export const auth = getAuth(app);
-
-/* ================= TYPES ================= */
-
-type ViewType = "dashboard" | "queue" | "detail";
+const auth = getAuth(app);
 
 /* ================= COMPONENT ================= */
 
 export default function Home() {
   const [user, setUser] = useState<User | null>(null);
-  const [view, setView] = useState<ViewType>("dashboard");
+  const [authReady, setAuthReady] = useState(false);
+
+  const [view, setView] = useState<"dashboard" | "queue" | "detail">(
+    "dashboard"
+  );
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  /* ================= AUTH LISTENER ================= */
+  /* ===== AUTH LISTENER ===== */
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => {
       setUser(u);
+      setAuthReady(true);
     });
 
     return () => unsub();
   }, []);
 
-  /* ================= LOGIN SCREEN ================= */
+  /* ===== LOADING ===== */
 
-  if (!user) {
+  if (!authReady)
     return (
       <div className="min-h-screen flex items-center justify-center bg-white text-black">
-        <div className="w-full max-w-sm space-y-4 p-6 border rounded-xl shadow">
-          <h1 className="text-xl font-bold text-center">
-            Accesso Gestionale
-          </h1>
-
-          <input
-            type="email"
-            placeholder="Email"
-            className="w-full border p-3 rounded"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-
-          <input
-            type="password"
-            placeholder="Password"
-            className="w-full border p-3 rounded"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-
-          <button
-            onClick={async () => {
-              try {
-                await signInWithEmailAndPassword(auth, email, password);
-              } catch {
-                alert("Credenziali errate");
-              }
-            }}
-            className="w-full bg-blue-700 text-white p-3 rounded font-bold"
-          >
-            Accedi
-          </button>
-        </div>
+        Caricamento...
       </div>
     );
-  }
 
-  /* ================= APP VIEWS ================= */
+  /* ===== LOGIN ===== */
+
+  if (!user)
+    return (
+      <div className="min-h-screen flex flex-col justify-center items-center bg-white text-black space-y-4">
+        <h1 className="text-2xl font-bold">Login Gestionale</h1>
+
+        <input
+          className="border-2 border-black p-2 rounded w-64"
+          placeholder="Email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+        />
+
+        <input
+          type="password"
+          className="border-2 border-black p-2 rounded w-64"
+          placeholder="Password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+        />
+
+        <button
+          onClick={async () => {
+            try {
+              await signInWithEmailAndPassword(auth, email, password);
+            } catch {
+              alert("Credenziali errate");
+            }
+          }}
+          className="bg-blue-700 text-white px-4 py-2 rounded"
+        >
+          Accedi
+        </button>
+      </div>
+    );
+
+  /* ===== DASHBOARD ===== */
 
   if (view === "dashboard") {
     return (
       <Dashboard
         user={user}
         goQueue={() => setView("queue")}
-        goDetail={(id) => {
+        goDetail={(id: string) => {
           setSelectedId(id);
           setView("detail");
         }}
@@ -115,12 +119,14 @@ export default function Home() {
     );
   }
 
+  /* ===== QUEUE ===== */
+
   if (view === "queue") {
     return (
       <Queue
         user={user}
         goBack={() => setView("dashboard")}
-        goDetail={(id) => {
+        goDetail={(id: string) => {
           setSelectedId(id);
           setView("detail");
         }}
@@ -128,11 +134,17 @@ export default function Home() {
     );
   }
 
-  return (
-    <ClientDetail
-      user={user}
-      clientId={selectedId!}
-      goBack={() => setView("dashboard")}
-    />
-  );
+  /* ===== CLIENT DETAIL ===== */
+
+  if (view === "detail" && selectedId) {
+    return (
+      <ClientDetail
+        user={user}
+        clientId={selectedId}
+        goBack={() => setView("dashboard")}
+      />
+    );
+  }
+
+  return null;
 }
