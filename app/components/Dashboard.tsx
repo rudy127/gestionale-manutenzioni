@@ -2,14 +2,19 @@
 
 import { useEffect, useState } from "react";
 import {
-  collection,
-  getDocs,
-  query,
-  where,
-  addDoc,
+  doc,
+  getDoc,
+  updateDoc,
+  deleteDoc,
+  arrayUnion,
 } from "firebase/firestore";
 import { db } from "../page";
 import type { User } from "firebase/auth";
+
+interface HistoryEntry {
+  date: string;
+  note: string;
+}
 
 interface Client {
   id: string;
@@ -21,21 +26,14 @@ interface Client {
   maintenanceDate: string;
   intervalValue: number;
   intervalType: "months" | "days";
-  ownerId: string;
+  history?: HistoryEntry[];
 }
 
 interface Props {
   user: User;
-  goQueue: () => void;
-  goDetail: (id: string) => void;
-  logout: () => void;
+  clientId: string;
+  goBack: () => void;
 }
-
-const daysDiff = (date: string) =>
-  Math.ceil(
-    (new Date(date).getTime() - new Date().getTime()) /
-      (1000 * 60 * 60 * 24)
-  );
 
 function calculateNextDate(value: number, type: "months" | "days") {
   const base = new Date();
@@ -49,221 +47,132 @@ function calculateNextDate(value: number, type: "months" | "days") {
   return new Date(base.getTime() + value * 86400000);
 }
 
-export default function Dashboard({
-  user,
-  goQueue,
-  goDetail,
-  logout,
+export default function ClientDetail({
+  clientId,
+  goBack,
 }: Props) {
-  const [clients, setClients] = useState<Client[]>([]);
+  const [client, setClient] = useState<Client | null>(null);
+  const [newNote, setNewNote] = useState("");
 
-  const [form, setForm] = useState({
-    name: "",
-    phone: "",
-    email: "",
-    address: "",
-    job: "",
-    intervalValue: 6,
-    intervalType: "months" as "months" | "days",
-  });
+  const loadClient = async () => {
+    const snap = await getDoc(doc(db, "clients", clientId));
 
-  const loadClients = async () => {
-    const q = query(
-      collection(db, "clients"),
-      where("ownerId", "==", user.uid)
-    );
-
-    const snap = await getDocs(q);
-
-    const list: Client[] = [];
-
-    snap.forEach((d) => {
-      const data = d.data() as Omit<Client, "id">;
-      list.push({ ...data, id: d.id });
-    });
-
-    setClients(list);
+    if (snap.exists()) {
+      const data = snap.data() as Omit<Client, "id">;
+      setClient({ ...data, id: snap.id });
+    }
   };
 
   useEffect(() => {
-    loadClients();
-  }, [user]);
+    loadClient();
+  }, [clientId]);
 
-  const addClient = async () => {
-    if (!form.name) {
-      alert("Inserisci almeno il nome");
-      return;
-    }
+  if (!client) return <div className="p-6">Caricamento...</div>;
 
-    const nextDate = calculateNextDate(
-      form.intervalValue,
-      form.intervalType
-    );
+  const addNote = async () => {
+    if (!newNote.trim()) return;
 
-    await addDoc(collection(db, "clients"), {
-      ...form,
-      maintenanceDate: nextDate.toISOString(),
-      ownerId: user.uid,
-      history: [],
+    const entry: HistoryEntry = {
+      date: new Date().toISOString(),
+      note: newNote,
+    };
+
+    await updateDoc(doc(db, "clients", client.id), {
+      history: arrayUnion(entry),
     });
 
-    setForm({
-      name: "",
-      phone: "",
-      email: "",
-      address: "",
-      job: "",
-      intervalValue: 6,
-      intervalType: "months",
-    });
-
-    loadClients();
+    setNewNote("");
+    loadClient();
   };
 
-  const red = clients.filter((c) => daysDiff(c.maintenanceDate) <= 0).length;
+  const confirmMaintenance = async () => {
+    const nextDate = calculateNextDate(
+      client.intervalValue,
+      client.intervalType
+    );
 
-  const orange = clients.filter(
-    (c) =>
-      daysDiff(c.maintenanceDate) > 0 &&
-      daysDiff(c.maintenanceDate) <= 7
-  ).length;
+    await updateDoc(doc(db, "clients", client.id), {
+      maintenanceDate: nextDate.toISOString(),
+    });
 
-  const yellow = clients.filter(
-    (c) =>
-      daysDiff(c.maintenanceDate) > 7 &&
-      daysDiff(c.maintenanceDate) <= 14
-  ).length;
+    loadClient();
+  };
+
+  const deleteClient = async () => {
+    const ok = confirm(
+      "Sei sicuro di voler eliminare definitivamente questo cliente?"
+    );
+
+    if (!ok) return;
+
+    await deleteDoc(doc(db, "clients", client.id));
+
+    goBack();
+  };
 
   return (
     <div className="min-h-screen bg-white text-black p-6 space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold">Dashboard</h1>
+      <button
+        onClick={goBack}
+        className="bg-gray-800 text-white px-4 py-2 rounded font-bold"
+      >
+        ← Torna
+      </button>
 
-        <button
-          onClick={logout}
-          className="bg-red-600 text-white px-4 py-2 rounded font-bold"
-        >
-          Logout
-        </button>
+      <h1 className="text-2xl font-bold">{client.name}</h1>
+
+      <div className="space-y-2">
+        <div><strong>Telefono:</strong> {client.phone}</div>
+        <div><strong>Email:</strong> {client.email}</div>
+        <div><strong>Indirizzo:</strong> {client.address}</div>
+        <div><strong>Lavoro svolto:</strong> {client.job}</div>
       </div>
 
-      {/* CONTATORI */}
-      <div className="grid grid-cols-3 gap-4">
-        <div className="bg-red-700 text-white p-4 rounded-xl text-center font-bold">
-          🔴 {red}
-        </div>
-        <div className="bg-orange-500 text-white p-4 rounded-xl text-center font-bold">
-          🟠 {orange}
-        </div>
-        <div className="bg-yellow-400 text-black p-4 rounded-xl text-center font-bold">
-          🟡 {yellow}
-        </div>
+      <div>
+        <strong>Prossima manutenzione:</strong>{" "}
+        {new Date(client.maintenanceDate).toLocaleDateString()}
       </div>
 
       <button
-        onClick={goQueue}
-        className="bg-blue-700 text-white px-4 py-2 rounded font-bold"
+        onClick={confirmMaintenance}
+        className="bg-green-700 text-white px-4 py-2 rounded font-bold w-full"
       >
-        Vai alla Coda Manutenzioni
+        Conferma Manutenzione
       </button>
 
-      {/* NUOVO CLIENTE */}
       <div className="border p-4 rounded space-y-3">
-        <h2 className="text-lg font-bold">Nuovo Cliente</h2>
+        <h2 className="font-bold">Storico interventi</h2>
 
-        <input
-          className="border p-2 w-full"
-          placeholder="Nome"
-          value={form.name}
-          onChange={(e) =>
-            setForm({ ...form, name: e.target.value })
-          }
-        />
-
-        <input
-          className="border p-2 w-full"
-          placeholder="Telefono"
-          value={form.phone}
-          onChange={(e) =>
-            setForm({ ...form, phone: e.target.value })
-          }
-        />
-
-        <input
-          className="border p-2 w-full"
-          placeholder="Email"
-          value={form.email}
-          onChange={(e) =>
-            setForm({ ...form, email: e.target.value })
-          }
-        />
-
-        <input
-          className="border p-2 w-full"
-          placeholder="Indirizzo"
-          value={form.address}
-          onChange={(e) =>
-            setForm({ ...form, address: e.target.value })
-          }
-        />
+        {client.history?.map((h, i) => (
+          <div key={i} className="border p-2 rounded">
+            <div className="text-xs text-gray-600">
+              {new Date(h.date).toLocaleString()}
+            </div>
+            <div>{h.note}</div>
+          </div>
+        ))}
 
         <textarea
           className="border p-2 w-full"
-          placeholder="Lavoro svolto"
-          value={form.job}
-          onChange={(e) =>
-            setForm({ ...form, job: e.target.value })
-          }
+          placeholder="Aggiungi nota"
+          value={newNote}
+          onChange={(e) => setNewNote(e.target.value)}
         />
 
-        <div className="flex gap-2">
-          <input
-            type="number"
-            className="border p-2 w-24"
-            value={form.intervalValue}
-            onChange={(e) =>
-              setForm({
-                ...form,
-                intervalValue: Number(e.target.value),
-              })
-            }
-          />
-
-          <select
-            className="border p-2"
-            value={form.intervalType}
-            onChange={(e) =>
-              setForm({
-                ...form,
-                intervalType: e.target.value as "months" | "days",
-              })
-            }
-          >
-            <option value="months">Mesi</option>
-            <option value="days">Giorni</option>
-          </select>
-        </div>
-
         <button
-          onClick={addClient}
-          className="bg-green-700 text-white px-4 py-2 rounded font-bold w-full"
+          onClick={addNote}
+          className="bg-blue-700 text-white px-4 py-2 rounded font-bold w-full"
         >
-          Salva Cliente
+          Aggiungi Nota
         </button>
       </div>
 
-      {/* LISTA CLIENTI */}
-      <div className="space-y-2">
-        {clients.map((c) => (
-          <div
-            key={c.id}
-            onClick={() => goDetail(c.id)}
-            className="p-3 bg-green-700 text-white rounded cursor-pointer font-bold"
-          >
-            {c.name}
-          </div>
-        ))}
-      </div>
+      <button
+        onClick={deleteClient}
+        className="bg-red-700 text-white px-4 py-2 rounded font-bold w-full"
+      >
+        Elimina Cliente
+      </button>
     </div>
   );
 }
