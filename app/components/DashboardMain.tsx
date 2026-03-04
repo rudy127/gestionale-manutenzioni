@@ -57,6 +57,20 @@ export default function DashboardMain({
 
   useEffect(()=>{load()},[])
 
+  useEffect(()=>{
+
+    if(!phonePrefill) return
+
+    const found = clients.find(c =>
+      c.phone?.replace(/\s/g,"") === phonePrefill.replace(/\s/g,"")
+    )
+
+    if(found){
+      goDetail(found.id!)
+    }
+
+  },[clients,phonePrefill])
+
   const addClient = async () => {
 
     if(!name) return
@@ -95,7 +109,8 @@ export default function DashboardMain({
   const yellow = clients.filter(c=>getDays(c.maintenanceDate)>7 && getDays(c.maintenanceDate)<=14).length
 
   const filtered = clients.filter(c =>
-    c.phone?.includes(search) || c.name?.toLowerCase().includes(search.toLowerCase())
+    c.phone?.includes(search) ||
+    c.name?.toLowerCase().includes(search.toLowerCase())
   )
 
   return(
