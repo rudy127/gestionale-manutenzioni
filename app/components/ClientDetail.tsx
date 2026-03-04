@@ -1,243 +1,240 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect,useState } from "react";
 import {
-  doc,
-  getDoc,
-  updateDoc,
-  deleteDoc
+doc,
+getDoc,
+updateDoc,
+deleteDoc
 } from "firebase/firestore";
 import { db } from "../page";
 import type { User } from "firebase/auth";
+import jsPDF from "jspdf";
 
-interface Props {
-  user: User;
-  clientId: string;
-  goBack: () => void;
+interface Props{
+user:User
+clientId:string
+goBack:()=>void
 }
 
-interface HistoryEntry {
-  date: string;
-  note: string;
+interface HistoryEntry{
+date:string
+note:string
 }
 
-interface Client {
-  id: string;
-  name: string;
-  phone: string;
-  email: string;
-  address: string;
-  job: string;
-  maintenanceDate: string;
-  history?: HistoryEntry[];
+interface Client{
+id:string
+name:string
+phone:string
+email:string
+address:string
+job:string
+maintenanceDate:string
+history?:HistoryEntry[]
 }
 
-export default function ClientDetail({ user, clientId, goBack }: Props) {
+export default function ClientDetail({user,clientId,goBack}:Props){
 
-  const [client, setClient] = useState<Client | null>(null);
-  const [note, setNote] = useState("");
-  const [nextDate, setNextDate] = useState("");
+const [client,setClient]=useState<Client|null>(null)
+const [note,setNote]=useState("")
+const [nextDate,setNextDate]=useState("")
 
-  const load = async () => {
+const load=async()=>{
 
-    const ref = doc(db, "clients", clientId);
-    const snap = await getDoc(ref);
+const snap=await getDoc(doc(db,"clients",clientId))
 
-    if (snap.exists()) {
+if(snap.exists()){
 
-      const data = snap.data() as Client;
+const data=snap.data() as Client
 
-      setClient({
-        ...data,
-        id: snap.id,
-        history: data.history || []
-      });
+setClient({...data,id:snap.id,history:data.history || []})
 
-      setNextDate(data.maintenanceDate?.split("T")[0] || "");
+setNextDate(data.maintenanceDate?.split("T")[0] || "")
 
-    }
-  };
+}
 
-  useEffect(() => {
-    load();
-  }, []);
+}
 
-  const addNote = async () => {
+useEffect(()=>{load()},[])
 
-    if (!client || !note) return;
+const addNote=async()=>{
 
-    const newEntry: HistoryEntry = {
-      date: new Date().toISOString(),
-      note: note
-    };
+if(!client || !note) return
 
-    const updatedHistory = [...(client.history || []), newEntry];
+const newEntry={
+date:new Date().toISOString(),
+note
+}
 
-    await updateDoc(doc(db, "clients", client.id), {
-      history: updatedHistory,
-      maintenanceDate: nextDate
-    });
+const updated=[...(client.history || []),newEntry]
 
-    setNote("");
+await updateDoc(doc(db,"clients",client.id),{
+history:updated,
+maintenanceDate:nextDate
+})
 
-    load();
+setNote("")
 
-  };
+load()
 
-  const deleteNote = async (index: number) => {
+}
 
-    if (!client) return;
+const deleteNote=async(index:number)=>{
 
-    const updatedHistory = [...(client.history || [])];
+if(!client) return
 
-    updatedHistory.splice(index, 1);
+const updated=[...(client.history || [])]
 
-    await updateDoc(doc(db, "clients", client.id), {
-      history: updatedHistory
-    });
+updated.splice(index,1)
 
-    load();
+await updateDoc(doc(db,"clients",client.id),{
+history:updated
+})
 
-  };
+load()
 
-  const deleteClient = async () => {
+}
 
-    if (!client) return;
+const exportPDF=()=>{
 
-    if (!confirm("Eliminare cliente?")) return;
+if(!client) return
 
-    await deleteDoc(doc(db, "clients", client.id));
+const pdf=new jsPDF()
 
-    goBack();
+pdf.text("Rapporto Intervento",20,20)
+pdf.text(`Cliente: ${client.name}`,20,40)
+pdf.text(`Telefono: ${client.phone}`,20,50)
+pdf.text(`Email: ${client.email}`,20,60)
+pdf.text(`Indirizzo: ${client.address}`,20,70)
 
-  };
+pdf.text("Storico interventi:",20,90)
 
-  if (!client) return <div className="p-6">Caricamento...</div>;
+let y=100
 
-  const phoneClean = client.phone?.replace(/\s/g, "");
+client.history?.forEach(h=>{
+pdf.text(`${new Date(h.date).toLocaleDateString()} - ${h.note}`,20,y)
+y+=10
+})
 
-  const callLink = `tel:${phoneClean}`;
-  const whatsappLink = `https://wa.me/${phoneClean}`;
-  const mapsLink = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(client.address)}`;
+pdf.save(`intervento-${client.name}.pdf`)
 
-  return (
+}
 
-    <div className="p-4 space-y-4">
+const deleteClient=async()=>{
 
-      <button
-        onClick={goBack}
-        className="border p-2 rounded"
-      >
-        ← Torna
-      </button>
+if(!client) return
 
-      <h1 className="text-xl font-bold">{client.name}</h1>
+if(!confirm("Eliminare cliente?")) return
 
-      <div>Telefono: {client.phone}</div>
-      <div>Email: {client.email}</div>
-      <div>Indirizzo: {client.address}</div>
+await deleteDoc(doc(db,"clients",client.id))
 
-      <div className="flex gap-2">
+goBack()
 
-        <a
-          href={callLink}
-          className="bg-blue-700 text-white px-3 py-2 rounded"
-        >
-          📞 Chiama
-        </a>
+}
 
-        <a
-          href={whatsappLink}
-          target="_blank"
-          className="bg-green-600 text-white px-3 py-2 rounded"
-        >
-          💬 WhatsApp
-        </a>
+if(!client) return <div>Caricamento...</div>
 
-        <a
-          href={mapsLink}
-          target="_blank"
-          className="bg-gray-700 text-white px-3 py-2 rounded"
-        >
-          🧭 Naviga
-        </a>
+const phoneClean=client.phone.replace(/\s/g,"")
 
-      </div>
+const callLink=`tel:${phoneClean}`
+const waLink=`https://wa.me/${phoneClean}`
+const mapsLink=`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(client.address)}`
 
-      <div className="border p-3 rounded">
-        <strong>Lavoro:</strong>
-        <div>{client.job}</div>
-      </div>
+return(
 
-      <div className="border p-3 rounded space-y-2">
+<div className="p-4 space-y-4">
 
-        <h2 className="font-bold">Storico interventi</h2>
+<button onClick={goBack} className="border p-2 rounded">
+← Torna
+</button>
 
-        {(client.history || []).map((h, i) => (
+<h1 className="text-xl font-bold">{client.name}</h1>
 
-          <div
-            key={i}
-            className="border p-2 rounded flex justify-between items-center"
-          >
+<div>Telefono: {client.phone}</div>
+<div>Email: {client.email}</div>
+<div>Indirizzo: {client.address}</div>
 
-            <div>
+<div className="flex gap-2">
 
-              <div className="text-sm text-gray-500">
-                {new Date(h.date).toLocaleString()}
-              </div>
+<a href={callLink} className="bg-blue-600 text-white px-3 py-2 rounded">
+📞 Chiama
+</a>
 
-              <div>{h.note}</div>
+<a href={waLink} target="_blank" className="bg-green-600 text-white px-3 py-2 rounded">
+💬 WhatsApp
+</a>
 
-            </div>
+<a href={mapsLink} target="_blank" className="bg-gray-700 text-white px-3 py-2 rounded">
+🧭 Naviga
+</a>
 
-            <button
-              onClick={() => deleteNote(i)}
-              className="bg-red-600 text-white px-2 py-1 rounded"
-            >
-              X
-            </button>
+<button
+onClick={exportPDF}
+className="bg-purple-700 text-white px-3 py-2 rounded"
+>
+🧾 PDF
+</button>
 
-          </div>
+</div>
 
-        ))}
+<div className="border p-3 rounded space-y-2">
 
-      </div>
+<h2 className="font-bold">Storico interventi</h2>
 
-      <textarea
-        placeholder="Nuova nota intervento"
-        value={note}
-        onChange={(e) => setNote(e.target.value)}
-        className="border p-2 w-full"
-      />
+{(client.history || []).map((h,i)=>(
 
-      <div className="flex flex-col gap-1">
+<div key={i} className="border p-2 rounded flex justify-between">
 
-        <label>Prossima manutenzione</label>
+<div>
+<div className="text-sm text-gray-500">
+{new Date(h.date).toLocaleString()}
+</div>
+<div>{h.note}</div>
+</div>
 
-        <input
-          type="date"
-          value={nextDate}
-          onChange={(e) => setNextDate(e.target.value)}
-          className="border p-2"
-        />
+<button
+onClick={()=>deleteNote(i)}
+className="bg-red-600 text-white px-2 rounded"
+>
+X
+</button>
 
-      </div>
+</div>
 
-      <button
-        onClick={addNote}
-        className="bg-blue-700 text-white p-2 rounded w-full"
-      >
-        Salva nota
-      </button>
+))}
 
-      <button
-        onClick={deleteClient}
-        className="bg-red-700 text-white p-2 rounded w-full"
-      >
-        Elimina cliente
-      </button>
+</div>
 
-    </div>
+<textarea
+placeholder="Nuova nota intervento"
+value={note}
+onChange={(e)=>setNote(e.target.value)}
+className="border p-2 w-full"
+/>
 
-  );
+<input
+type="date"
+value={nextDate}
+onChange={(e)=>setNextDate(e.target.value)}
+className="border p-2"
+/>
+
+<button
+onClick={addNote}
+className="bg-blue-700 text-white p-2 rounded w-full"
+>
+Salva nota
+</button>
+
+<button
+onClick={deleteClient}
+className="bg-red-700 text-white p-2 rounded w-full"
+>
+Elimina cliente
+</button>
+
+</div>
+
+)
+
 }
