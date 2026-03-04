@@ -6,7 +6,6 @@ import {
   getDoc,
   updateDoc,
   deleteDoc,
-  arrayUnion,
 } from "firebase/firestore";
 import { db } from "../page";
 import type { User } from "firebase/auth";
@@ -39,12 +38,17 @@ export default function ClientDetail({ user, clientId, goBack }: Props) {
   const [nextDate, setNextDate] = useState("");
 
   const load = async () => {
-    const snap = await getDoc(doc(db, "clients", clientId));
+    const ref = doc(db, "clients", clientId);
+    const snap = await getDoc(ref);
 
     if (snap.exists()) {
       const data = snap.data() as Client;
 
-      setClient({ ...data, id: snap.id });
+      setClient({
+        ...data,
+        id: snap.id,
+        history: data.history || [],
+      });
 
       setNextDate(data.maintenanceDate?.split("T")[0] || "");
     }
@@ -57,13 +61,15 @@ export default function ClientDetail({ user, clientId, goBack }: Props) {
   const addNote = async () => {
     if (!client || !note) return;
 
-    const entry = {
+    const newEntry: HistoryEntry = {
       date: new Date().toISOString(),
-      note,
+      note: note,
     };
 
+    const updatedHistory = [...(client.history || []), newEntry];
+
     await updateDoc(doc(db, "clients", client.id), {
-      history: arrayUnion(entry),
+      history: updatedHistory,
       maintenanceDate: nextDate,
     });
 
@@ -82,12 +88,15 @@ export default function ClientDetail({ user, clientId, goBack }: Props) {
     goBack();
   };
 
-  if (!client) return <div>Caricamento...</div>;
+  if (!client) return <div className="p-6">Caricamento...</div>;
 
   return (
-    <div className="p-4 space-y-3">
+    <div className="p-4 space-y-4">
 
-      <button onClick={goBack} className="border p-2 rounded">
+      <button
+        onClick={goBack}
+        className="border p-2 rounded"
+      >
         ← Torna
       </button>
 
@@ -97,23 +106,48 @@ export default function ClientDetail({ user, clientId, goBack }: Props) {
       <div>Email: {client.email}</div>
       <div>Indirizzo: {client.address}</div>
 
-      <div>
-        <strong>Lavoro:</strong> {client.job}
+      <div className="border p-3 rounded">
+        <strong>Lavoro:</strong>
+        <div>{client.job}</div>
+      </div>
+
+      <div className="border p-3 rounded space-y-2">
+
+        <h2 className="font-bold">Storico interventi</h2>
+
+        {(client.history || []).map((h, i) => (
+          <div
+            key={i}
+            className="border p-2 rounded"
+          >
+            <div className="text-sm text-gray-500">
+              {new Date(h.date).toLocaleString()}
+            </div>
+            <div>{h.note}</div>
+          </div>
+        ))}
+
       </div>
 
       <textarea
-        placeholder="Nota intervento"
+        placeholder="Nuova nota intervento"
         value={note}
         onChange={(e) => setNote(e.target.value)}
         className="border p-2 w-full"
       />
 
-      <input
-        type="date"
-        value={nextDate}
-        onChange={(e) => setNextDate(e.target.value)}
-        className="border p-2"
-      />
+      <div className="flex flex-col gap-1">
+
+        <label>Prossima manutenzione</label>
+
+        <input
+          type="date"
+          value={nextDate}
+          onChange={(e) => setNextDate(e.target.value)}
+          className="border p-2"
+        />
+
+      </div>
 
       <button
         onClick={addNote}
