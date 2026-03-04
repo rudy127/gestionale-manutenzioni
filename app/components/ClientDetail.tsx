@@ -114,6 +114,12 @@ export default function ClientDetail({ user, clientId, goBack }: Props) {
 
   if (!client) return <div className="p-6">Caricamento...</div>;
 
+  const phoneClean = client.phone?.replace(/\s/g, "");
+
+  const callLink = `tel:${phoneClean}`;
+  const whatsappLink = `https://wa.me/${phoneClean}`;
+  const mapsLink = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(client.address)}`;
+
   return (
 
     <div className="p-4 space-y-4">
@@ -130,6 +136,33 @@ export default function ClientDetail({ user, clientId, goBack }: Props) {
       <div>Telefono: {client.phone}</div>
       <div>Email: {client.email}</div>
       <div>Indirizzo: {client.address}</div>
+
+      <div className="flex gap-2">
+
+        <a
+          href={callLink}
+          className="bg-blue-700 text-white px-3 py-2 rounded"
+        >
+          📞 Chiama
+        </a>
+
+        <a
+          href={whatsappLink}
+          target="_blank"
+          className="bg-green-600 text-white px-3 py-2 rounded"
+        >
+          💬 WhatsApp
+        </a>
+
+        <a
+          href={mapsLink}
+          target="_blank"
+          className="bg-gray-700 text-white px-3 py-2 rounded"
+        >
+          🧭 Naviga
+        </a>
+
+      </div>
 
       <div className="border p-3 rounded">
         <strong>Lavoro:</strong>
