@@ -11,11 +11,11 @@ import {
   type User,
 } from "firebase/auth";
 
-import Dashboard from "./components/DashboardMain";
+import DashboardMain from "./components/DashboardMain";
 import Queue from "./components/Queue";
 import ClientDetail from "./components/ClientDetail";
 
-/* ================= FIREBASE CONFIG ================= */
+/* ================= FIREBASE ================= */
 
 const firebaseConfig = {
   apiKey: "AIzaSyDnduh9NKI2AqTn4rFC0kKTsIGCm6Ip7SY",
@@ -32,7 +32,7 @@ const app =
 export const db = getFirestore(app);
 const auth = getAuth(app);
 
-/* ================= COMPONENT ================= */
+/* ================= APP ================= */
 
 export default function Home() {
   const [user, setUser] = useState<User | null>(null);
@@ -41,12 +41,15 @@ export default function Home() {
   const [view, setView] = useState<"dashboard" | "queue" | "detail">(
     "dashboard"
   );
+
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  /* ===== AUTH LISTENER ===== */
+  const [phoneParam, setPhoneParam] = useState("");
+
+  /* ================= AUTH ================= */
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => {
@@ -57,24 +60,36 @@ export default function Home() {
     return () => unsub();
   }, []);
 
-  /* ===== LOADING ===== */
+  /* ================= PHONE PARAM ================= */
 
-  if (!authReady)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const phone = params.get("phone");
+
+    if (phone) {
+      setPhoneParam(phone);
+    }
+  }, []);
+
+  /* ================= LOADING ================= */
+
+  if (!authReady) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-white text-black">
+      <div className="min-h-screen flex items-center justify-center">
         Caricamento...
       </div>
     );
+  }
 
-  /* ===== LOGIN ===== */
+  /* ================= LOGIN ================= */
 
-  if (!user)
+  if (!user) {
     return (
-      <div className="min-h-screen flex flex-col justify-center items-center bg-white text-black space-y-4">
-        <h1 className="text-2xl font-bold">Login Gestionale</h1>
+      <div className="min-h-screen flex flex-col justify-center items-center gap-4">
+        <h1 className="text-xl font-bold">Login Gestionale</h1>
 
         <input
-          className="border-2 border-black p-2 rounded w-64"
+          className="border p-2"
           placeholder="Email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
@@ -82,33 +97,31 @@ export default function Home() {
 
         <input
           type="password"
-          className="border-2 border-black p-2 rounded w-64"
+          className="border p-2"
           placeholder="Password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
         />
 
         <button
-          onClick={async () => {
-            try {
-              await signInWithEmailAndPassword(auth, email, password);
-            } catch {
-              alert("Credenziali errate");
-            }
-          }}
           className="bg-blue-700 text-white px-4 py-2 rounded"
+          onClick={() =>
+            signInWithEmailAndPassword(auth, email, password)
+          }
         >
           Accedi
         </button>
       </div>
     );
+  }
 
-  /* ===== DASHBOARD ===== */
+  /* ================= DASHBOARD ================= */
 
   if (view === "dashboard") {
     return (
-      <Dashboard
+      <DashboardMain
         user={user}
+        phonePrefill={phoneParam}
         goQueue={() => setView("queue")}
         goDetail={(id: string) => {
           setSelectedId(id);
@@ -119,7 +132,7 @@ export default function Home() {
     );
   }
 
-  /* ===== QUEUE ===== */
+  /* ================= QUEUE ================= */
 
   if (view === "queue") {
     return (
@@ -134,7 +147,7 @@ export default function Home() {
     );
   }
 
-  /* ===== CLIENT DETAIL ===== */
+  /* ================= CLIENT DETAIL ================= */
 
   if (view === "detail" && selectedId) {
     return (
