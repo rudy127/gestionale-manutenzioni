@@ -5,7 +5,7 @@ import {
   doc,
   getDoc,
   updateDoc,
-  deleteDoc,
+  deleteDoc
 } from "firebase/firestore";
 import { db } from "../page";
 import type { User } from "firebase/auth";
@@ -33,24 +33,28 @@ interface Client {
 }
 
 export default function ClientDetail({ user, clientId, goBack }: Props) {
+
   const [client, setClient] = useState<Client | null>(null);
   const [note, setNote] = useState("");
   const [nextDate, setNextDate] = useState("");
 
   const load = async () => {
+
     const ref = doc(db, "clients", clientId);
     const snap = await getDoc(ref);
 
     if (snap.exists()) {
+
       const data = snap.data() as Client;
 
       setClient({
         ...data,
         id: snap.id,
-        history: data.history || [],
+        history: data.history || []
       });
 
       setNextDate(data.maintenanceDate?.split("T")[0] || "");
+
     }
   };
 
@@ -59,26 +63,45 @@ export default function ClientDetail({ user, clientId, goBack }: Props) {
   }, []);
 
   const addNote = async () => {
+
     if (!client || !note) return;
 
     const newEntry: HistoryEntry = {
       date: new Date().toISOString(),
-      note: note,
+      note: note
     };
 
     const updatedHistory = [...(client.history || []), newEntry];
 
     await updateDoc(doc(db, "clients", client.id), {
       history: updatedHistory,
-      maintenanceDate: nextDate,
+      maintenanceDate: nextDate
     });
 
     setNote("");
 
     load();
+
+  };
+
+  const deleteNote = async (index: number) => {
+
+    if (!client) return;
+
+    const updatedHistory = [...(client.history || [])];
+
+    updatedHistory.splice(index, 1);
+
+    await updateDoc(doc(db, "clients", client.id), {
+      history: updatedHistory
+    });
+
+    load();
+
   };
 
   const deleteClient = async () => {
+
     if (!client) return;
 
     if (!confirm("Eliminare cliente?")) return;
@@ -86,11 +109,13 @@ export default function ClientDetail({ user, clientId, goBack }: Props) {
     await deleteDoc(doc(db, "clients", client.id));
 
     goBack();
+
   };
 
   if (!client) return <div className="p-6">Caricamento...</div>;
 
   return (
+
     <div className="p-4 space-y-4">
 
       <button
@@ -116,15 +141,31 @@ export default function ClientDetail({ user, clientId, goBack }: Props) {
         <h2 className="font-bold">Storico interventi</h2>
 
         {(client.history || []).map((h, i) => (
+
           <div
             key={i}
-            className="border p-2 rounded"
+            className="border p-2 rounded flex justify-between items-center"
           >
-            <div className="text-sm text-gray-500">
-              {new Date(h.date).toLocaleString()}
+
+            <div>
+
+              <div className="text-sm text-gray-500">
+                {new Date(h.date).toLocaleString()}
+              </div>
+
+              <div>{h.note}</div>
+
             </div>
-            <div>{h.note}</div>
+
+            <button
+              onClick={() => deleteNote(i)}
+              className="bg-red-600 text-white px-2 py-1 rounded"
+            >
+              X
+            </button>
+
           </div>
+
         ))}
 
       </div>
@@ -164,5 +205,6 @@ export default function ClientDetail({ user, clientId, goBack }: Props) {
       </button>
 
     </div>
+
   );
 }
