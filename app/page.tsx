@@ -14,14 +14,15 @@ import {
 import DashboardMain from "./components/DashboardMain";
 import Queue from "./components/Queue";
 import ClientDetail from "./components/ClientDetail";
+import Calendar from "./components/Calendar";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyDnduh9NKI2AqTn4rFC0kKTsIGCm6Ip7SY",
+  apiKey: "APIKEY",
   authDomain: "gestionale-rudy.firebaseapp.com",
   projectId: "gestionale-rudy",
   storageBucket: "gestionale-rudy.firebasestorage.app",
   messagingSenderId: "679882450882",
-  appId: "1:679882450882:web:85857ff10ae54794a5585b",
+  appId: "APPID",
 };
 
 const app =
@@ -32,32 +33,27 @@ const auth = getAuth(app);
 
 export default function Home() {
   const [user, setUser] = useState<User | null>(null);
-  const [authReady, setAuthReady] = useState(false);
+  const [ready, setReady] = useState(false);
 
-  const [view, setView] = useState<"dashboard" | "queue" | "detail">("dashboard");
+  const [view, setView] = useState<
+    "dashboard" | "queue" | "detail" | "calendar"
+  >("dashboard");
+
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [queueFilter, setQueueFilter] = useState<string | null>(null);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  const [phoneParam, setPhoneParam] = useState("");
-
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => {
       setUser(u);
-      setAuthReady(true);
+      setReady(true);
     });
     return () => unsub();
   }, []);
 
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const phone = params.get("phone");
-    if (phone) setPhoneParam(phone);
-  }, []);
-
-  if (!authReady) return <div className="p-10">Caricamento...</div>;
+  if (!ready) return <div className="p-10">Caricamento...</div>;
 
   if (!user) {
     return (
@@ -81,7 +77,9 @@ export default function Home() {
 
         <button
           className="bg-blue-700 text-white px-4 py-2 rounded"
-          onClick={() => signInWithEmailAndPassword(auth, email, password)}
+          onClick={() =>
+            signInWithEmailAndPassword(auth, email, password)
+          }
         >
           Accedi
         </button>
@@ -93,15 +91,15 @@ export default function Home() {
     return (
       <DashboardMain
         user={user}
-        phonePrefill={phoneParam}
-        goQueue={(type: string) => {
+        goQueue={(type) => {
           setQueueFilter(type);
           setView("queue");
         }}
-        goDetail={(id: string) => {
+        goDetail={(id) => {
           setSelectedId(id);
           setView("detail");
         }}
+        goCalendar={() => setView("calendar")}
         logout={() => signOut(auth)}
       />
     );
@@ -113,7 +111,20 @@ export default function Home() {
         user={user}
         filter={queueFilter}
         goBack={() => setView("dashboard")}
-        goDetail={(id: string) => {
+        goDetail={(id) => {
+          setSelectedId(id);
+          setView("detail");
+        }}
+      />
+    );
+  }
+
+  if (view === "calendar") {
+    return (
+      <Calendar
+        user={user}
+        goBack={() => setView("dashboard")}
+        goDetail={(id) => {
           setSelectedId(id);
           setView("detail");
         }}
