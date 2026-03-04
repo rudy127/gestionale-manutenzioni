@@ -13,6 +13,7 @@ import type { User } from "firebase/auth";
 
 interface Props {
   user: User;
+  phonePrefill: string;
   goQueue: () => void;
   goDetail: (id: string) => void;
   logout: () => void;
@@ -32,6 +33,7 @@ interface Client {
 
 export default function DashboardMain({
   user,
+  phonePrefill,
   goQueue,
   goDetail,
   logout,
@@ -40,7 +42,7 @@ export default function DashboardMain({
 
   const [form, setForm] = useState({
     name: "",
-    phone: "",
+    phone: phonePrefill || "",
     email: "",
     address: "",
     job: "",
@@ -48,28 +50,37 @@ export default function DashboardMain({
     intervalType: "months" as "months" | "days",
   });
 
-  /* ================= LOAD CLIENTS ================= */
+  /* ================= PREFILL TELEFONO ================= */
 
   useEffect(() => {
-    const load = async () => {
-      const q = query(
-        collection(db, "clients"),
-        where("ownerId", "==", user.uid)
-      );
+    if (phonePrefill) {
+      setForm((f) => ({ ...f, phone: phonePrefill }));
+    }
+  }, [phonePrefill]);
 
-      const snap = await getDocs(q);
+  /* ================= LOAD CLIENTI ================= */
 
-      const list: Client[] = [];
-      snap.forEach((d) => {
-        const data = d.data() as Client;
-        list.push({ ...data, id: d.id });
-      });
+  const loadClients = async () => {
+    const q = query(
+      collection(db, "clients"),
+      where("ownerId", "==", user.uid)
+    );
 
-      setClients(list);
-    };
+    const snap = await getDocs(q);
 
-    load();
-  }, [user]);
+    const list: Client[] = [];
+
+    snap.forEach((d) => {
+      const data = d.data() as Client;
+      list.push({ ...data, id: d.id });
+    });
+
+    setClients(list);
+  };
+
+  useEffect(() => {
+    loadClients();
+  }, []);
 
   /* ================= CONTATORI ================= */
 
@@ -80,23 +91,26 @@ export default function DashboardMain({
     );
 
   const red = clients.filter((c) => getDaysDiff(c.maintenanceDate) <= 0).length;
+
   const orange = clients.filter(
     (c) =>
       getDaysDiff(c.maintenanceDate) > 0 &&
       getDaysDiff(c.maintenanceDate) <= 7
   ).length;
+
   const yellow = clients.filter(
     (c) =>
       getDaysDiff(c.maintenanceDate) > 7 &&
       getDaysDiff(c.maintenanceDate) <= 14
   ).length;
 
-  /* ================= ADD CLIENT ================= */
+  /* ================= AGGIUNGI CLIENTE ================= */
 
   const addClient = async () => {
     if (!form.name) return;
 
     const nextDate = new Date();
+
     if (form.intervalType === "months") {
       nextDate.setMonth(nextDate.getMonth() + form.intervalValue);
     } else {
@@ -120,24 +134,16 @@ export default function DashboardMain({
       intervalType: "months",
     });
 
-    // ricarica
-    const snap = await getDocs(
-      query(collection(db, "clients"), where("ownerId", "==", user.uid))
-    );
-
-    const list: Client[] = [];
-    snap.forEach((d) => {
-      const data = d.data() as Client;
-      list.push({ ...data, id: d.id });
-    });
-
-    setClients(list);
+    loadClients();
   };
 
   return (
     <div className="min-h-screen bg-white text-black p-6 space-y-6">
+      {/* HEADER */}
+
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold">Dashboard</h1>
+
         <button
           onClick={logout}
           className="bg-red-600 text-white px-4 py-2 rounded"
@@ -147,13 +153,16 @@ export default function DashboardMain({
       </div>
 
       {/* CONTATORI */}
-      <div className="flex gap-4 text-white font-bold">
+
+      <div className="flex gap-4 font-bold text-white">
         <div className="bg-red-700 px-4 py-2 rounded">🔴 {red}</div>
         <div className="bg-orange-600 px-4 py-2 rounded">🟠 {orange}</div>
         <div className="bg-yellow-400 text-black px-4 py-2 rounded">
           🟡 {yellow}
         </div>
       </div>
+
+      {/* CODA MANUTENZIONI */}
 
       <button
         onClick={goQueue}
@@ -163,6 +172,7 @@ export default function DashboardMain({
       </button>
 
       {/* LISTA CLIENTI */}
+
       <div className="space-y-2">
         {clients.map((c) => (
           <div
@@ -176,8 +186,9 @@ export default function DashboardMain({
       </div>
 
       {/* NUOVO CLIENTE */}
+
       <div className="border-2 border-black p-4 rounded space-y-2">
-        <h2 className="font-bold text-lg">Nuovo Cliente</h2>
+        <h2 className="text-lg font-bold">Nuovo Cliente</h2>
 
         <input
           className="w-full border p-2 rounded"
@@ -187,6 +198,7 @@ export default function DashboardMain({
             setForm({ ...form, name: e.target.value })
           }
         />
+
         <input
           className="w-full border p-2 rounded"
           placeholder="Telefono"
@@ -195,6 +207,7 @@ export default function DashboardMain({
             setForm({ ...form, phone: e.target.value })
           }
         />
+
         <input
           className="w-full border p-2 rounded"
           placeholder="Email"
@@ -203,6 +216,7 @@ export default function DashboardMain({
             setForm({ ...form, email: e.target.value })
           }
         />
+
         <input
           className="w-full border p-2 rounded"
           placeholder="Indirizzo"
@@ -211,9 +225,10 @@ export default function DashboardMain({
             setForm({ ...form, address: e.target.value })
           }
         />
+
         <textarea
           className="w-full border p-2 rounded"
-          placeholder="Lavoro"
+          placeholder="Lavoro eseguito"
           value={form.job}
           onChange={(e) =>
             setForm({ ...form, job: e.target.value })
