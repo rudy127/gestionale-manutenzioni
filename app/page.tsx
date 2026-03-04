@@ -15,8 +15,6 @@ import DashboardMain from "./components/DashboardMain";
 import Queue from "./components/Queue";
 import ClientDetail from "./components/ClientDetail";
 
-/* ================= FIREBASE ================= */
-
 const firebaseConfig = {
   apiKey: "AIzaSyDnduh9NKI2AqTn4rFC0kKTsIGCm6Ip7SY",
   authDomain: "gestionale-rudy.firebaseapp.com",
@@ -32,60 +30,38 @@ const app =
 export const db = getFirestore(app);
 const auth = getAuth(app);
 
-/* ================= APP ================= */
-
 export default function Home() {
   const [user, setUser] = useState<User | null>(null);
   const [authReady, setAuthReady] = useState(false);
 
-  const [view, setView] = useState<"dashboard" | "queue" | "detail">(
-    "dashboard"
-  );
-
+  const [view, setView] = useState<"dashboard" | "queue" | "detail">("dashboard");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [queueFilter, setQueueFilter] = useState<string | null>(null);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
   const [phoneParam, setPhoneParam] = useState("");
 
-  /* ================= AUTH ================= */
-
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => {
       setUser(u);
       setAuthReady(true);
     });
-
     return () => unsub();
   }, []);
-
-  /* ================= PHONE PARAM ================= */
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const phone = params.get("phone");
-
-    if (phone) {
-      setPhoneParam(phone);
-    }
+    if (phone) setPhoneParam(phone);
   }, []);
 
-  /* ================= LOADING ================= */
-
-  if (!authReady) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        Caricamento...
-      </div>
-    );
-  }
-
-  /* ================= LOGIN ================= */
+  if (!authReady) return <div className="p-10">Caricamento...</div>;
 
   if (!user) {
     return (
-      <div className="min-h-screen flex flex-col justify-center items-center gap-4">
+      <div className="flex flex-col gap-3 items-center justify-center min-h-screen">
         <h1 className="text-xl font-bold">Login Gestionale</h1>
 
         <input
@@ -105,9 +81,7 @@ export default function Home() {
 
         <button
           className="bg-blue-700 text-white px-4 py-2 rounded"
-          onClick={() =>
-            signInWithEmailAndPassword(auth, email, password)
-          }
+          onClick={() => signInWithEmailAndPassword(auth, email, password)}
         >
           Accedi
         </button>
@@ -115,14 +89,15 @@ export default function Home() {
     );
   }
 
-  /* ================= DASHBOARD ================= */
-
   if (view === "dashboard") {
     return (
       <DashboardMain
         user={user}
         phonePrefill={phoneParam}
-        goQueue={() => setView("queue")}
+        goQueue={(type: string) => {
+          setQueueFilter(type);
+          setView("queue");
+        }}
         goDetail={(id: string) => {
           setSelectedId(id);
           setView("detail");
@@ -132,12 +107,11 @@ export default function Home() {
     );
   }
 
-  /* ================= QUEUE ================= */
-
   if (view === "queue") {
     return (
       <Queue
         user={user}
+        filter={queueFilter}
         goBack={() => setView("dashboard")}
         goDetail={(id: string) => {
           setSelectedId(id);
@@ -146,8 +120,6 @@ export default function Home() {
       />
     );
   }
-
-  /* ================= CLIENT DETAIL ================= */
 
   if (view === "detail" && selectedId) {
     return (

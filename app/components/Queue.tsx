@@ -1,97 +1,86 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { collection, getDocs, query, where } from "firebase/firestore";
+import { collection, getDocs } from "firebase/firestore";
 import { db } from "../page";
 import type { User } from "firebase/auth";
 
-interface Client {
-  id: string;
-  name: string;
-  maintenanceDate: string;
+interface Props{
+user:User
+filter:string|null
+goBack:()=>void
+goDetail:(id:string)=>void
 }
 
-interface Props {
-  user: User;
-  goBack: () => void;
-  goDetail: (id: string) => void;
+interface Client{
+id:string
+name:string
+maintenanceDate:string
 }
 
-const daysDiff = (date: string) =>
-  Math.ceil(
-    (new Date(date).getTime() - new Date().getTime()) /
-      (1000 * 60 * 60 * 24)
-  );
+export default function Queue({user,filter,goBack,goDetail}:Props){
 
-export default function Queue({ user, goBack, goDetail }: Props) {
-  const [clients, setClients] = useState<Client[]>([]);
+const [clients,setClients]=useState<Client[]>([])
 
-  useEffect(() => {
-    const load = async () => {
-      const q = query(
-        collection(db, "clients"),
-        where("ownerId", "==", user.uid)
-      );
+const load=async()=>{
 
-      const snap = await getDocs(q);
+const snap=await getDocs(collection(db,"clients"))
 
-      const list: Client[] = [];
+const list:Client[]=[]
 
-      snap.forEach((d) => {
-        const data = d.data() as Omit<Client, "id">;
-        list.push({ ...data, id: d.id });
-      });
+snap.forEach(d=>{
+const data=d.data() as Client
+list.push({...data,id:d.id})
+})
 
-      list.sort(
-        (a, b) =>
-          new Date(a.maintenanceDate).getTime() -
-          new Date(b.maintenanceDate).getTime()
-      );
+setClients(list)
 
-      setClients(list);
-    };
+}
 
-    load();
-  }, [user]);
+useEffect(()=>{load()},[])
 
-  const getColor = (date: string) => {
-    const diff = daysDiff(date);
+const getDays=(date:string)=>{
 
-    if (diff <= 0) return "bg-red-600 text-white";
-    if (diff <= 7) return "bg-orange-500 text-white";
-    if (diff <= 14) return "bg-yellow-400 text-black";
+return Math.ceil(
+(new Date(date).getTime()-new Date().getTime())/(1000*60*60*24)
+)
 
-    return "bg-green-600 text-white";
-  };
+}
 
-  return (
-    <div className="min-h-screen bg-white text-black p-6">
-      <button
-        onClick={goBack}
-        className="mb-6 bg-gray-800 text-white px-4 py-2 rounded font-bold"
-      >
-        ← Torna alla Dashboard
-      </button>
+const filtered=clients.filter(c=>{
 
-      <h1 className="text-2xl font-bold mb-6">
-        Coda Manutenzioni
-      </h1>
+const days=getDays(c.maintenanceDate)
 
-      <div className="space-y-3">
-        {clients.map((c) => (
-          <div
-            key={c.id}
-            onClick={() => goDetail(c.id)}
-            className={`p-4 rounded-xl cursor-pointer font-bold ${getColor(
-              c.maintenanceDate
-            )}`}
-          >
-            {c.name} –{" "}
-            {new Date(c.maintenanceDate).toLocaleDateString()} (
-            {daysDiff(c.maintenanceDate)} gg)
-          </div>
-        ))}
-      </div>
-    </div>
-  );
+if(filter==="red") return days<=0
+if(filter==="orange") return days>0 && days<=7
+if(filter==="yellow") return days>7 && days<=14
+
+return true
+
+})
+
+return(
+
+<div className="p-4 space-y-3">
+
+<button onClick={goBack} className="border p-2 rounded">
+← Dashboard
+</button>
+
+<h1 className="font-bold text-lg">Coda Manutenzioni</h1>
+
+{filtered.map(c=>(
+<div
+key={c.id}
+className="border p-3 rounded cursor-pointer"
+onClick={()=>goDetail(c.id)}
+>
+{c.name}
+</div>
+))}
+
+</div>
+
+)
+
 }
