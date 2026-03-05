@@ -44,6 +44,8 @@ export default function Home() {
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
+  const [queueFilter, setQueueFilter] = useState<string | null>(null);
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (u) => {
       setUser(u);
@@ -93,7 +95,10 @@ export default function Home() {
     return (
       <DashboardMain
         user={user}
-        goQueue={() => setView("queue")}
+        goQueue={(type) => {
+          setQueueFilter(type);
+          setView("queue");
+        }}
         goDetail={(id) => {
           setSelectedId(id);
           setView("detail");
@@ -108,6 +113,7 @@ export default function Home() {
     return (
       <Queue
         user={user}
+        filter={queueFilter}
         goBack={() => setView("dashboard")}
         goDetail={(id) => {
           setSelectedId(id);
