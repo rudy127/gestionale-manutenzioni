@@ -8,7 +8,7 @@ import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
   signOut,
-  type User,
+  User,
 } from "firebase/auth";
 
 import DashboardMain from "./components/DashboardMain";
@@ -17,12 +17,12 @@ import ClientDetail from "./components/ClientDetail";
 import Calendar from "./components/Calendar";
 
 const firebaseConfig = {
-  apiKey: "APIKEY",
+  apiKey: "AIzaSyDnduh9NKI2AqTn4rFC0kKTsIGCm6Ip7SY",
   authDomain: "gestionale-rudy.firebaseapp.com",
   projectId: "gestionale-rudy",
   storageBucket: "gestionale-rudy.firebasestorage.app",
   messagingSenderId: "679882450882",
-  appId: "APPID",
+  appId: "1:679882450882:web:85857ff10ae54794a5585b",
 };
 
 const app =
@@ -33,31 +33,32 @@ const auth = getAuth(app);
 
 export default function Home() {
   const [user, setUser] = useState<User | null>(null);
-  const [ready, setReady] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
 
   const [view, setView] = useState<
     "dashboard" | "queue" | "detail" | "calendar"
   >("dashboard");
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [queueFilter, setQueueFilter] = useState<string | null>(null);
-
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (u) => {
+    const unsubscribe = onAuthStateChanged(auth, (u) => {
       setUser(u);
-      setReady(true);
+      setLoading(false);
     });
-    return () => unsub();
+
+    return () => unsubscribe();
   }, []);
 
-  if (!ready) return <div className="p-10">Caricamento...</div>;
+  if (loading) return <div className="p-10">Caricamento...</div>;
 
   if (!user) {
     return (
       <div className="flex flex-col gap-3 items-center justify-center min-h-screen">
+
         <h1 className="text-xl font-bold">Login Gestionale</h1>
 
         <input
@@ -76,13 +77,14 @@ export default function Home() {
         />
 
         <button
-          className="bg-blue-700 text-white px-4 py-2 rounded"
+          className="bg-blue-600 text-white p-2 rounded"
           onClick={() =>
             signInWithEmailAndPassword(auth, email, password)
           }
         >
           Accedi
         </button>
+
       </div>
     );
   }
@@ -91,10 +93,7 @@ export default function Home() {
     return (
       <DashboardMain
         user={user}
-        goQueue={(type) => {
-          setQueueFilter(type);
-          setView("queue");
-        }}
+        goQueue={() => setView("queue")}
         goDetail={(id) => {
           setSelectedId(id);
           setView("detail");
@@ -109,7 +108,6 @@ export default function Home() {
     return (
       <Queue
         user={user}
-        filter={queueFilter}
         goBack={() => setView("dashboard")}
         goDetail={(id) => {
           setSelectedId(id);
