@@ -29,6 +29,7 @@ export default function DashboardMain({
   goCalendar,
   logout,
 }: Props) {
+
   const [clients, setClients] = useState<Client[]>([]);
   const [search, setSearch] = useState("");
   const [phoneLookup, setPhoneLookup] = useState("");
@@ -42,10 +43,12 @@ export default function DashboardMain({
   const load = async () => {
     const snap = await getDocs(collection(db, "clients"));
     const list: Client[] = [];
+
     snap.forEach((d) => {
       const data = d.data() as Client;
       list.push({ ...data, id: d.id });
     });
+
     setClients(list);
   };
 
@@ -53,7 +56,26 @@ export default function DashboardMain({
     load();
   }, []);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const phoneParam = params.get("phone");
+
+    if (phoneParam) {
+      setPhoneLookup(phoneParam);
+      setPhone(phoneParam);
+
+      const found = clients.find(
+        (c) => c.phone?.replace(/\s/g, "") === phoneParam.replace(/\s/g, "")
+      );
+
+      if (found && found.id) {
+        goDetail(found.id);
+      }
+    }
+  }, [clients]);
+
   const addClient = async () => {
+
     if (!name) return;
 
     await addDoc(collection(db, "clients"), {
@@ -76,14 +98,15 @@ export default function DashboardMain({
   };
 
   const searchPhone = () => {
+
     const clean = phoneLookup.replace(/\s/g, "");
 
     const found = clients.find(
       (c) => c.phone?.replace(/\s/g, "") === clean
     );
 
-    if (found) {
-      goDetail(found.id!);
+    if (found && found.id) {
+      goDetail(found.id);
       return;
     }
 
