@@ -31,6 +31,7 @@ export default function DashboardMain({
 }: Props) {
   const [clients, setClients] = useState<Client[]>([]);
   const [search, setSearch] = useState("");
+  const [phoneLookup, setPhoneLookup] = useState("");
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -74,6 +75,22 @@ export default function DashboardMain({
     load();
   };
 
+  const searchPhone = () => {
+    const clean = phoneLookup.replace(/\s/g, "");
+
+    const found = clients.find(
+      (c) => c.phone?.replace(/\s/g, "") === clean
+    );
+
+    if (found) {
+      goDetail(found.id!);
+      return;
+    }
+
+    setPhone(phoneLookup);
+    alert("Numero non presente. Puoi creare il cliente.");
+  };
+
   const getDays = (date: string) =>
     Math.ceil(
       (new Date(date).getTime() - new Date().getTime()) /
@@ -81,9 +98,11 @@ export default function DashboardMain({
     );
 
   const red = clients.filter((c) => getDays(c.maintenanceDate) <= 0).length;
+
   const orange = clients.filter(
     (c) => getDays(c.maintenanceDate) > 0 && getDays(c.maintenanceDate) <= 7
   ).length;
+
   const yellow = clients.filter(
     (c) => getDays(c.maintenanceDate) > 7 && getDays(c.maintenanceDate) <= 14
   ).length;
@@ -134,6 +153,26 @@ export default function DashboardMain({
         📅 Calendario manutenzioni
       </button>
 
+      <div className="border p-3 rounded space-y-2">
+
+        <h2 className="font-bold">Ricerca telefono</h2>
+
+        <input
+          placeholder="Numero telefono"
+          value={phoneLookup}
+          onChange={(e) => setPhoneLookup(e.target.value)}
+          className="border p-2 w-full"
+        />
+
+        <button
+          onClick={searchPhone}
+          className="bg-blue-700 text-white p-2 rounded w-full"
+        >
+          Cerca cliente
+        </button>
+
+      </div>
+
       <input
         placeholder="Cerca cliente"
         value={search}
@@ -145,11 +184,40 @@ export default function DashboardMain({
 
         <h2 className="font-bold">Nuovo Cliente</h2>
 
-        <input placeholder="Nome" value={name} onChange={(e)=>setName(e.target.value)} className="border p-2 w-full"/>
-        <input placeholder="Telefono" value={phone} onChange={(e)=>setPhone(e.target.value)} className="border p-2 w-full"/>
-        <input placeholder="Email" value={email} onChange={(e)=>setEmail(e.target.value)} className="border p-2 w-full"/>
-        <input placeholder="Indirizzo" value={address} onChange={(e)=>setAddress(e.target.value)} className="border p-2 w-full"/>
-        <textarea placeholder="Tipo lavoro" value={job} onChange={(e)=>setJob(e.target.value)} className="border p-2 w-full"/>
+        <input
+          placeholder="Nome"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          className="border p-2 w-full"
+        />
+
+        <input
+          placeholder="Telefono"
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+          className="border p-2 w-full"
+        />
+
+        <input
+          placeholder="Email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          className="border p-2 w-full"
+        />
+
+        <input
+          placeholder="Indirizzo"
+          value={address}
+          onChange={(e) => setAddress(e.target.value)}
+          className="border p-2 w-full"
+        />
+
+        <textarea
+          placeholder="Tipo lavoro"
+          value={job}
+          onChange={(e) => setJob(e.target.value)}
+          className="border p-2 w-full"
+        />
 
         <button
           onClick={addClient}
