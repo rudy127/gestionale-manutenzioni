@@ -30,14 +30,30 @@ email:string
 address:string
 job:string
 maintenanceDate:string
+
+impiantoTipo?:string
+impiantoMarca?:string
+impiantoModello?:string
+impiantoMatricola?:string
+impiantoAnno?:string
+impiantoPotenza?:string
+
 history?:HistoryEntry[]
 }
 
 export default function ClientDetail({user,clientId,goBack}:Props){
 
 const [client,setClient]=useState<Client|null>(null)
+
 const [note,setNote]=useState("")
 const [nextDate,setNextDate]=useState("")
+
+const [tipo,setTipo]=useState("")
+const [marca,setMarca]=useState("")
+const [modello,setModello]=useState("")
+const [matricola,setMatricola]=useState("")
+const [anno,setAnno]=useState("")
+const [potenza,setPotenza]=useState("")
 
 const load=async()=>{
 
@@ -51,11 +67,37 @@ setClient({...data,id:snap.id,history:data.history || []})
 
 setNextDate(data.maintenanceDate?.split("T")[0] || "")
 
+setTipo(data.impiantoTipo || "")
+setMarca(data.impiantoMarca || "")
+setModello(data.impiantoModello || "")
+setMatricola(data.impiantoMatricola || "")
+setAnno(data.impiantoAnno || "")
+setPotenza(data.impiantoPotenza || "")
+
 }
 
 }
 
 useEffect(()=>{load()},[])
+
+const saveImpianto=async()=>{
+
+if(!client) return
+
+await updateDoc(doc(db,"clients",client.id),{
+
+impiantoTipo:tipo,
+impiantoMarca:marca,
+impiantoModello:modello,
+impiantoMatricola:matricola,
+impiantoAnno:anno,
+impiantoPotenza:potenza
+
+})
+
+alert("Dati impianto salvati")
+
+}
 
 const addNote=async()=>{
 
@@ -69,8 +111,10 @@ note
 const updated=[...(client.history || []),newEntry]
 
 await updateDoc(doc(db,"clients",client.id),{
+
 history:updated,
 maintenanceDate:nextDate
+
 })
 
 setNote("")
@@ -88,7 +132,9 @@ const updated=[...(client.history || [])]
 updated.splice(index,1)
 
 await updateDoc(doc(db,"clients",client.id),{
+
 history:updated
+
 })
 
 load()
@@ -173,6 +219,26 @@ onClick={exportPDF}
 className="bg-purple-700 text-white px-3 py-2 rounded"
 >
 🧾 PDF
+</button>
+
+</div>
+
+<div className="border p-3 rounded space-y-2">
+
+<h2 className="font-bold">Dati impianto</h2>
+
+<input placeholder="Tipo impianto" value={tipo} onChange={(e)=>setTipo(e.target.value)} className="border p-2 w-full"/>
+<input placeholder="Marca" value={marca} onChange={(e)=>setMarca(e.target.value)} className="border p-2 w-full"/>
+<input placeholder="Modello" value={modello} onChange={(e)=>setModello(e.target.value)} className="border p-2 w-full"/>
+<input placeholder="Matricola" value={matricola} onChange={(e)=>setMatricola(e.target.value)} className="border p-2 w-full"/>
+<input placeholder="Anno installazione" value={anno} onChange={(e)=>setAnno(e.target.value)} className="border p-2 w-full"/>
+<input placeholder="Potenza" value={potenza} onChange={(e)=>setPotenza(e.target.value)} className="border p-2 w-full"/>
+
+<button
+onClick={saveImpianto}
+className="bg-blue-700 text-white p-2 rounded w-full"
+>
+Salva dati impianto
 </button>
 
 </div>

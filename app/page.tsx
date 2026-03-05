@@ -15,6 +15,7 @@ import DashboardMain from "./components/DashboardMain";
 import Queue from "./components/Queue";
 import ClientDetail from "./components/ClientDetail";
 import Calendar from "./components/Calendar";
+import Agenda from "./components/Agenda";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDnduh9NKI2AqTn4rFC0kKTsIGCm6Ip7SY",
@@ -29,46 +30,61 @@ const app =
   getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
 
 export const db = getFirestore(app);
+
 const auth = getAuth(app);
 
 export default function Home() {
+
   const [user, setUser] = useState<User | null>(null);
+
   const [loading, setLoading] = useState(true);
 
   const [email, setEmail] = useState("");
+
   const [password, setPassword] = useState("");
 
   const [view, setView] = useState<
-    "dashboard" | "queue" | "detail" | "calendar"
+    "dashboard" | "queue" | "detail" | "calendar" | "agenda"
   >("dashboard");
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
+
   const [queueFilter, setQueueFilter] = useState<string | null>(null);
 
   useEffect(() => {
+
     const unsubscribe = onAuthStateChanged(auth, (u) => {
+
       setUser(u);
+
       setLoading(false);
+
     });
 
     return () => unsubscribe();
+
   }, []);
 
   const handleLogin = async () => {
+
     try {
+
       await signInWithEmailAndPassword(auth, email, password);
+
     } catch (error: any) {
+
       alert("Errore login: " + error.message);
-      console.error(error);
+
     }
+
   };
 
-  if (loading) {
-    return <div className="p-10">Caricamento...</div>;
-  }
+  if (loading) return <div className="p-10">Caricamento...</div>;
 
   if (!user) {
+
     return (
+
       <div className="flex flex-col gap-3 items-center justify-center min-h-screen">
 
         <h1 className="text-xl font-bold">Login Gestionale</h1>
@@ -96,11 +112,15 @@ export default function Home() {
         </button>
 
       </div>
+
     );
+
   }
 
   if (view === "dashboard") {
+
     return (
+
       <DashboardMain
         user={user}
         goQueue={(type) => {
@@ -112,13 +132,18 @@ export default function Home() {
           setView("detail");
         }}
         goCalendar={() => setView("calendar")}
+        goAgenda={() => setView("agenda")}
         logout={() => signOut(auth)}
       />
+
     );
+
   }
 
   if (view === "queue") {
+
     return (
+
       <Queue
         user={user}
         filter={queueFilter}
@@ -128,11 +153,15 @@ export default function Home() {
           setView("detail");
         }}
       />
+
     );
+
   }
 
   if (view === "calendar") {
+
     return (
+
       <Calendar
         user={user}
         goBack={() => setView("dashboard")}
@@ -141,18 +170,42 @@ export default function Home() {
           setView("detail");
         }}
       />
+
     );
+
+  }
+
+  if (view === "agenda") {
+
+    return (
+
+      <Agenda
+        user={user}
+        goBack={() => setView("dashboard")}
+        goDetail={(id) => {
+          setSelectedId(id);
+          setView("detail");
+        }}
+      />
+
+    );
+
   }
 
   if (view === "detail" && selectedId) {
+
     return (
+
       <ClientDetail
         user={user}
         clientId={selectedId}
         goBack={() => setView("dashboard")}
       />
+
     );
+
   }
 
   return null;
+
 }
