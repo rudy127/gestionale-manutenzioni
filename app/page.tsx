@@ -43,7 +43,6 @@ export default function Home() {
   >("dashboard");
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
-
   const [queueFilter, setQueueFilter] = useState<string | null>(null);
 
   useEffect(() => {
@@ -55,7 +54,18 @@ export default function Home() {
     return () => unsubscribe();
   }, []);
 
-  if (loading) return <div className="p-10">Caricamento...</div>;
+  const handleLogin = async () => {
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+    } catch (error: any) {
+      alert("Errore login: " + error.message);
+      console.error(error);
+    }
+  };
+
+  if (loading) {
+    return <div className="p-10">Caricamento...</div>;
+  }
 
   if (!user) {
     return (
@@ -80,9 +90,7 @@ export default function Home() {
 
         <button
           className="bg-blue-600 text-white p-2 rounded"
-          onClick={() =>
-            signInWithEmailAndPassword(auth, email, password)
-          }
+          onClick={handleLogin}
         >
           Accedi
         </button>
