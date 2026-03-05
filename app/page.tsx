@@ -36,11 +36,9 @@ const auth = getAuth(app);
 export default function Home() {
 
   const [user, setUser] = useState<User | null>(null);
-
   const [loading, setLoading] = useState(true);
 
   const [email, setEmail] = useState("");
-
   const [password, setPassword] = useState("");
 
   const [view, setView] = useState<
@@ -48,17 +46,23 @@ export default function Home() {
   >("dashboard");
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
-
   const [queueFilter, setQueueFilter] = useState<string | null>(null);
+  const [phoneParam, setPhoneParam] = useState<string | null>(null);
+
+  useEffect(() => {
+
+    const params = new URLSearchParams(window.location.search);
+    const phone = params.get("phone");
+
+    if (phone) setPhoneParam(phone);
+
+  }, []);
 
   useEffect(() => {
 
     const unsubscribe = onAuthStateChanged(auth, (u) => {
-
       setUser(u);
-
       setLoading(false);
-
     });
 
     return () => unsubscribe();
@@ -68,13 +72,9 @@ export default function Home() {
   const handleLogin = async () => {
 
     try {
-
       await signInWithEmailAndPassword(auth, email, password);
-
     } catch (error: any) {
-
       alert("Errore login: " + error.message);
-
     }
 
   };
@@ -123,6 +123,7 @@ export default function Home() {
 
       <DashboardMain
         user={user}
+        phonePrefill={phoneParam}
         goQueue={(type) => {
           setQueueFilter(type);
           setView("queue");

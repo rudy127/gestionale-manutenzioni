@@ -7,6 +7,7 @@ import type { User } from "firebase/auth";
 
 interface Props {
   user: User;
+  phonePrefill: string | null;
   goQueue: (type: string) => void;
   goDetail: (id: string) => void;
   goCalendar: () => void;
@@ -25,6 +26,7 @@ interface Client {
 }
 
 export default function DashboardMain({
+  phonePrefill,
   goQueue,
   goDetail,
   goCalendar,
@@ -34,10 +36,9 @@ export default function DashboardMain({
 
   const [clients, setClients] = useState<Client[]>([]);
   const [search, setSearch] = useState("");
-  const [phoneLookup, setPhoneLookup] = useState("");
 
   const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
+  const [phone, setPhone] = useState(phonePrefill || "");
   const [email, setEmail] = useState("");
   const [address, setAddress] = useState("");
   const [job, setJob] = useState("");
@@ -69,18 +70,12 @@ export default function DashboardMain({
 
   useEffect(() => {
 
-    const params = new URLSearchParams(window.location.search);
-    const phoneParam = params.get("phone");
-
-    if (!phoneParam) return;
-
-    setPhoneLookup(phoneParam);
-    setPhone(phoneParam);
+    if (!phonePrefill) return;
 
     const found = clients.find(
       (c) =>
         c.phone?.replace(/\s/g, "") ===
-        phoneParam.replace(/\s/g, "")
+        phonePrefill.replace(/\s/g, "")
     );
 
     if (found && found.id) {
@@ -115,48 +110,20 @@ export default function DashboardMain({
 
   };
 
-  const searchPhone = () => {
-
-    const clean = phoneLookup.replace(/\s/g, "");
-
-    const found = clients.find(
-      (c) =>
-        c.phone?.replace(/\s/g, "") === clean
-    );
-
-    if (found && found.id) {
-
-      goDetail(found.id);
-      return;
-
-    }
-
-    setPhone(phoneLookup);
-
-    alert("Numero non presente. Puoi creare il cliente.");
-
-  };
-
   const getDays = (date: string) =>
     Math.ceil(
       (new Date(date).getTime() - new Date().getTime()) /
       (1000 * 60 * 60 * 24)
     );
 
-  const red = clients.filter(
-    (c) => getDays(c.maintenanceDate) <= 0
-  ).length;
+  const red = clients.filter((c) => getDays(c.maintenanceDate) <= 0).length;
 
   const orange = clients.filter(
-    (c) =>
-      getDays(c.maintenanceDate) > 0 &&
-      getDays(c.maintenanceDate) <= 7
+    (c) => getDays(c.maintenanceDate) > 0 && getDays(c.maintenanceDate) <= 7
   ).length;
 
   const yellow = clients.filter(
-    (c) =>
-      getDays(c.maintenanceDate) > 7 &&
-      getDays(c.maintenanceDate) <= 14
+    (c) => getDays(c.maintenanceDate) > 7 && getDays(c.maintenanceDate) <= 14
   ).length;
 
   const filtered = clients.filter(
@@ -171,13 +138,9 @@ export default function DashboardMain({
 
       <div className="flex justify-between">
 
-        <h1 className="text-xl font-bold">
-          Clienti
-        </h1>
+        <h1 className="text-xl font-bold">Clienti</h1>
 
-        <button onClick={logout}>
-          Logout
-        </button>
+        <button onClick={logout}>Logout</button>
 
       </div>
 
@@ -220,87 +183,49 @@ export default function DashboardMain({
         📅 Agenda interventi
       </button>
 
-      <div className="border p-3 rounded space-y-2">
-
-        <h2 className="font-bold">
-          Ricerca telefono
-        </h2>
-
-        <input
-          placeholder="Numero telefono"
-          value={phoneLookup}
-          onChange={(e) =>
-            setPhoneLookup(e.target.value)
-          }
-          className="border p-2 w-full"
-        />
-
-        <button
-          onClick={searchPhone}
-          className="bg-blue-700 text-white p-2 rounded w-full"
-        >
-          Cerca cliente
-        </button>
-
-      </div>
-
       <input
         placeholder="Cerca cliente"
         value={search}
-        onChange={(e) =>
-          setSearch(e.target.value)
-        }
+        onChange={(e) => setSearch(e.target.value)}
         className="border p-2 w-full"
       />
 
       <div className="border p-4 rounded space-y-2">
 
-        <h2 className="font-bold">
-          Nuovo Cliente
-        </h2>
+        <h2 className="font-bold">Nuovo Cliente</h2>
 
         <input
           placeholder="Nome"
           value={name}
-          onChange={(e) =>
-            setName(e.target.value)
-          }
+          onChange={(e)=>setName(e.target.value)}
           className="border p-2 w-full"
         />
 
         <input
           placeholder="Telefono"
           value={phone}
-          onChange={(e) =>
-            setPhone(e.target.value)
-          }
+          onChange={(e)=>setPhone(e.target.value)}
           className="border p-2 w-full"
         />
 
         <input
           placeholder="Email"
           value={email}
-          onChange={(e) =>
-            setEmail(e.target.value)
-          }
+          onChange={(e)=>setEmail(e.target.value)}
           className="border p-2 w-full"
         />
 
         <input
           placeholder="Indirizzo"
           value={address}
-          onChange={(e) =>
-            setAddress(e.target.value)
-          }
+          onChange={(e)=>setAddress(e.target.value)}
           className="border p-2 w-full"
         />
 
         <textarea
           placeholder="Tipo lavoro"
           value={job}
-          onChange={(e) =>
-            setJob(e.target.value)
-          }
+          onChange={(e)=>setJob(e.target.value)}
           className="border p-2 w-full"
         />
 
