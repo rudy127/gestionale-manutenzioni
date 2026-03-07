@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect,useState } from "react";
+import { useEffect, useState } from "react";
 import {
 doc,
 getDoc,
@@ -30,14 +30,6 @@ email:string
 address:string
 job:string
 maintenanceDate:string
-
-impiantoTipo?:string
-impiantoMarca?:string
-impiantoModello?:string
-impiantoMatricola?:string
-impiantoAnno?:string
-impiantoPotenza?:string
-
 history?:HistoryEntry[]
 }
 
@@ -45,15 +37,14 @@ export default function ClientDetail({user,clientId,goBack}:Props){
 
 const [client,setClient]=useState<Client|null>(null)
 
+const [name,setName]=useState("")
+const [phone,setPhone]=useState("")
+const [email,setEmail]=useState("")
+const [address,setAddress]=useState("")
+const [job,setJob]=useState("")
+
 const [note,setNote]=useState("")
 const [nextDate,setNextDate]=useState("")
-
-const [tipo,setTipo]=useState("")
-const [marca,setMarca]=useState("")
-const [modello,setModello]=useState("")
-const [matricola,setMatricola]=useState("")
-const [anno,setAnno]=useState("")
-const [potenza,setPotenza]=useState("")
 
 const load=async()=>{
 
@@ -65,14 +56,13 @@ const data=snap.data() as Client
 
 setClient({...data,id:snap.id,history:data.history || []})
 
-setNextDate(data.maintenanceDate?.split("T")[0] || "")
+setName(data.name || "")
+setPhone(data.phone || "")
+setEmail(data.email || "")
+setAddress(data.address || "")
+setJob(data.job || "")
 
-setTipo(data.impiantoTipo || "")
-setMarca(data.impiantoMarca || "")
-setModello(data.impiantoModello || "")
-setMatricola(data.impiantoMatricola || "")
-setAnno(data.impiantoAnno || "")
-setPotenza(data.impiantoPotenza || "")
+setNextDate(data.maintenanceDate?.split("T")[0] || "")
 
 }
 
@@ -80,22 +70,24 @@ setPotenza(data.impiantoPotenza || "")
 
 useEffect(()=>{load()},[])
 
-const saveImpianto=async()=>{
+const saveClient=async()=>{
 
 if(!client) return
 
 await updateDoc(doc(db,"clients",client.id),{
 
-impiantoTipo:tipo,
-impiantoMarca:marca,
-impiantoModello:modello,
-impiantoMatricola:matricola,
-impiantoAnno:anno,
-impiantoPotenza:potenza
+name,
+phone,
+email,
+address,
+job,
+maintenanceDate:nextDate
 
 })
 
-alert("Dati impianto salvati")
+alert("Cliente aggiornato")
+
+load()
 
 }
 
@@ -111,10 +103,8 @@ note
 const updated=[...(client.history || []),newEntry]
 
 await updateDoc(doc(db,"clients",client.id),{
-
 history:updated,
 maintenanceDate:nextDate
-
 })
 
 setNote("")
@@ -132,9 +122,7 @@ const updated=[...(client.history || [])]
 updated.splice(index,1)
 
 await updateDoc(doc(db,"clients",client.id),{
-
 history:updated
-
 })
 
 load()
@@ -148,10 +136,10 @@ if(!client) return
 const pdf=new jsPDF()
 
 pdf.text("Rapporto Intervento",20,20)
-pdf.text(`Cliente: ${client.name}`,20,40)
-pdf.text(`Telefono: ${client.phone}`,20,50)
-pdf.text(`Email: ${client.email}`,20,60)
-pdf.text(`Indirizzo: ${client.address}`,20,70)
+pdf.text(`Cliente: ${name}`,20,40)
+pdf.text(`Telefono: ${phone}`,20,50)
+pdf.text(`Email: ${email}`,20,60)
+pdf.text(`Indirizzo: ${address}`,20,70)
 
 pdf.text("Storico interventi:",20,90)
 
@@ -162,7 +150,7 @@ pdf.text(`${new Date(h.date).toLocaleDateString()} - ${h.note}`,20,y)
 y+=10
 })
 
-pdf.save(`intervento-${client.name}.pdf`)
+pdf.save(`intervento-${name}.pdf`)
 
 }
 
@@ -180,11 +168,11 @@ goBack()
 
 if(!client) return <div>Caricamento...</div>
 
-const phoneClean=client.phone.replace(/\s/g,"")
+const phoneClean=phone.replace(/\s/g,"")
 
 const callLink=`tel:${phoneClean}`
 const waLink=`https://wa.me/${phoneClean}`
-const mapsLink=`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(client.address)}`
+const mapsLink=`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`
 
 return(
 
@@ -194,11 +182,55 @@ return(
 ← Torna
 </button>
 
-<h1 className="text-xl font-bold">{client.name}</h1>
+<h1 className="text-xl font-bold">Cliente</h1>
 
-<div>Telefono: {client.phone}</div>
-<div>Email: {client.email}</div>
-<div>Indirizzo: {client.address}</div>
+<div className="space-y-2">
+
+<input
+value={name}
+onChange={(e)=>setName(e.target.value)}
+className="border p-2 w-full"
+/>
+
+<input
+value={phone}
+onChange={(e)=>setPhone(e.target.value)}
+className="border p-2 w-full"
+/>
+
+<input
+value={email}
+onChange={(e)=>setEmail(e.target.value)}
+className="border p-2 w-full"
+/>
+
+<input
+value={address}
+onChange={(e)=>setAddress(e.target.value)}
+className="border p-2 w-full"
+/>
+
+<textarea
+value={job}
+onChange={(e)=>setJob(e.target.value)}
+className="border p-2 w-full"
+/>
+
+<input
+type="date"
+value={nextDate}
+onChange={(e)=>setNextDate(e.target.value)}
+className="border p-2"
+/>
+
+<button
+onClick={saveClient}
+className="bg-green-700 text-white p-2 rounded w-full"
+>
+Salva modifiche cliente
+</button>
+
+</div>
 
 <div className="flex gap-2">
 
@@ -225,26 +257,6 @@ className="bg-purple-700 text-white px-3 py-2 rounded"
 
 <div className="border p-3 rounded space-y-2">
 
-<h2 className="font-bold">Dati impianto</h2>
-
-<input placeholder="Tipo impianto" value={tipo} onChange={(e)=>setTipo(e.target.value)} className="border p-2 w-full"/>
-<input placeholder="Marca" value={marca} onChange={(e)=>setMarca(e.target.value)} className="border p-2 w-full"/>
-<input placeholder="Modello" value={modello} onChange={(e)=>setModello(e.target.value)} className="border p-2 w-full"/>
-<input placeholder="Matricola" value={matricola} onChange={(e)=>setMatricola(e.target.value)} className="border p-2 w-full"/>
-<input placeholder="Anno installazione" value={anno} onChange={(e)=>setAnno(e.target.value)} className="border p-2 w-full"/>
-<input placeholder="Potenza" value={potenza} onChange={(e)=>setPotenza(e.target.value)} className="border p-2 w-full"/>
-
-<button
-onClick={saveImpianto}
-className="bg-blue-700 text-white p-2 rounded w-full"
->
-Salva dati impianto
-</button>
-
-</div>
-
-<div className="border p-3 rounded space-y-2">
-
 <h2 className="font-bold">Storico interventi</h2>
 
 {(client.history || []).map((h,i)=>(
@@ -252,10 +264,13 @@ Salva dati impianto
 <div key={i} className="border p-2 rounded flex justify-between">
 
 <div>
+
 <div className="text-sm text-gray-500">
 {new Date(h.date).toLocaleString()}
 </div>
+
 <div>{h.note}</div>
+
 </div>
 
 <button
@@ -276,13 +291,6 @@ placeholder="Nuova nota intervento"
 value={note}
 onChange={(e)=>setNote(e.target.value)}
 className="border p-2 w-full"
-/>
-
-<input
-type="date"
-value={nextDate}
-onChange={(e)=>setNextDate(e.target.value)}
-className="border p-2"
 />
 
 <button
