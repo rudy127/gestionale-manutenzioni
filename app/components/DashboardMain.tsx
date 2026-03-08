@@ -7,9 +7,11 @@ import type { User } from "firebase/auth";
 
 interface Props {
   user: User;
+  phonePrefill: string | null;
   goQueue: (type: string) => void;
   goDetail: (id: string) => void;
   goCalendar: () => void;
+  goAgenda: () => void;
   logout: () => void;
 }
 
@@ -24,17 +26,19 @@ interface Client {
 }
 
 export default function DashboardMain({
+  phonePrefill,
   goQueue,
   goDetail,
   goCalendar,
+  goAgenda,
   logout,
 }: Props) {
+
   const [clients, setClients] = useState<Client[]>([]);
   const [search, setSearch] = useState("");
-  const [phoneLookup, setPhoneLookup] = useState("");
 
   const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
+  const [phone, setPhone] = useState(phonePrefill || "");
   const [email, setEmail] = useState("");
   const [address, setAddress] = useState("");
   const [job, setJob] = useState("");
@@ -56,19 +60,18 @@ export default function DashboardMain({
   }, []);
 
   const addClient = async () => {
+
     if (!name) return;
 
-    const newClient = {
-      name: name || "",
-      phone: phone || "",
-      email: email || "",
-      address: address || "",
-      job: job || "",
+    await addDoc(collection(db, "clients"), {
+      name,
+      phone,
+      email,
+      address,
+      job,
       maintenanceDate: new Date().toISOString(),
       history: [],
-    };
-
-    await addDoc(collection(db, "clients"), newClient);
+    });
 
     setName("");
     setPhone("");
@@ -79,26 +82,10 @@ export default function DashboardMain({
     load();
   };
 
-  const searchPhone = () => {
-    const clean = phoneLookup.replace(/\s/g, "");
-
-    const found = clients.find(
-      (c) => c.phone?.replace(/\s/g, "") === clean
-    );
-
-    if (found) {
-      goDetail(found.id!);
-      return;
-    }
-
-    setPhone(phoneLookup);
-    alert("Numero non presente. Puoi creare il cliente.");
-  };
-
   const getDays = (date: string) =>
     Math.ceil(
       (new Date(date).getTime() - new Date().getTime()) /
-        (1000 * 60 * 60 * 24)
+      (1000 * 60 * 60 * 24)
     );
 
   const red = clients.filter((c) => getDays(c.maintenanceDate) <= 0).length;
@@ -157,25 +144,12 @@ export default function DashboardMain({
         📅 Calendario manutenzioni
       </button>
 
-      <div className="border p-3 rounded space-y-2">
-
-        <h2 className="font-bold">Ricerca telefono</h2>
-
-        <input
-          placeholder="Numero telefono"
-          value={phoneLookup}
-          onChange={(e) => setPhoneLookup(e.target.value)}
-          className="border p-2 w-full"
-        />
-
-        <button
-          onClick={searchPhone}
-          className="bg-blue-700 text-white p-2 rounded w-full"
-        >
-          Cerca cliente
-        </button>
-
-      </div>
+      <button
+        onClick={goAgenda}
+        className="border p-2 rounded w-full"
+      >
+        🗓 Agenda interventi
+      </button>
 
       <input
         placeholder="Cerca cliente"
