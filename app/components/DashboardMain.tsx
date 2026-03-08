@@ -7,11 +7,9 @@ import type { User } from "firebase/auth";
 
 interface Props {
   user: User;
-  phonePrefill: string | null;
   goQueue: (type: string) => void;
   goDetail: (id: string) => void;
   goCalendar: () => void;
-  goAgenda: () => void;
   logout: () => void;
 }
 
@@ -26,79 +24,51 @@ interface Client {
 }
 
 export default function DashboardMain({
-  phonePrefill,
   goQueue,
   goDetail,
   goCalendar,
-  goAgenda,
   logout,
 }: Props) {
-
   const [clients, setClients] = useState<Client[]>([]);
   const [search, setSearch] = useState("");
+  const [phoneLookup, setPhoneLookup] = useState("");
 
   const [name, setName] = useState("");
-  const [phone, setPhone] = useState(phonePrefill || "");
+  const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [address, setAddress] = useState("");
   const [job, setJob] = useState("");
 
   const load = async () => {
-
     const snap = await getDocs(collection(db, "clients"));
-
     const list: Client[] = [];
 
     snap.forEach((d) => {
-
       const data = d.data() as Client;
-
-      list.push({
-        ...data,
-        id: d.id
-      });
-
+      list.push({ ...data, id: d.id });
     });
 
     setClients(list);
-
   };
 
   useEffect(() => {
     load();
   }, []);
 
-  useEffect(() => {
-
-    if (!phonePrefill) return;
-
-    const found = clients.find(
-      (c) =>
-        c.phone?.replace(/\s/g, "") ===
-        phonePrefill.replace(/\s/g, "")
-    );
-
-    if (found && found.id) {
-      goDetail(found.id);
-    }
-
-  }, [clients]);
-
   const addClient = async () => {
-
     if (!name) return;
 
-    await addDoc(collection(db, "clients"), {
-
-      name,
-      phone,
-      email,
-      address,
-      job,
+    const newClient = {
+      name: name || "",
+      phone: phone || "",
+      email: email || "",
+      address: address || "",
+      job: job || "",
       maintenanceDate: new Date().toISOString(),
-      history: []
+      history: [],
+    };
 
-    });
+    await addDoc(collection(db, "clients"), newClient);
 
     setName("");
     setPhone("");
@@ -107,13 +77,28 @@ export default function DashboardMain({
     setJob("");
 
     load();
+  };
 
+  const searchPhone = () => {
+    const clean = phoneLookup.replace(/\s/g, "");
+
+    const found = clients.find(
+      (c) => c.phone?.replace(/\s/g, "") === clean
+    );
+
+    if (found) {
+      goDetail(found.id!);
+      return;
+    }
+
+    setPhone(phoneLookup);
+    alert("Numero non presente. Puoi creare il cliente.");
   };
 
   const getDays = (date: string) =>
     Math.ceil(
       (new Date(date).getTime() - new Date().getTime()) /
-      (1000 * 60 * 60 * 24)
+        (1000 * 60 * 60 * 24)
     );
 
   const red = clients.filter((c) => getDays(c.maintenanceDate) <= 0).length;
@@ -133,15 +118,11 @@ export default function DashboardMain({
   );
 
   return (
-
     <div className="p-4 space-y-4">
 
       <div className="flex justify-between">
-
         <h1 className="text-xl font-bold">Clienti</h1>
-
         <button onClick={logout}>Logout</button>
-
       </div>
 
       <div className="grid grid-cols-3 gap-2">
@@ -176,12 +157,25 @@ export default function DashboardMain({
         📅 Calendario manutenzioni
       </button>
 
-      <button
-        onClick={goAgenda}
-        className="border p-2 rounded w-full"
-      >
-        📅 Agenda interventi
-      </button>
+      <div className="border p-3 rounded space-y-2">
+
+        <h2 className="font-bold">Ricerca telefono</h2>
+
+        <input
+          placeholder="Numero telefono"
+          value={phoneLookup}
+          onChange={(e) => setPhoneLookup(e.target.value)}
+          className="border p-2 w-full"
+        />
+
+        <button
+          onClick={searchPhone}
+          className="bg-blue-700 text-white p-2 rounded w-full"
+        >
+          Cerca cliente
+        </button>
+
+      </div>
 
       <input
         placeholder="Cerca cliente"
@@ -197,35 +191,35 @@ export default function DashboardMain({
         <input
           placeholder="Nome"
           value={name}
-          onChange={(e)=>setName(e.target.value)}
+          onChange={(e) => setName(e.target.value)}
           className="border p-2 w-full"
         />
 
         <input
           placeholder="Telefono"
           value={phone}
-          onChange={(e)=>setPhone(e.target.value)}
+          onChange={(e) => setPhone(e.target.value)}
           className="border p-2 w-full"
         />
 
         <input
           placeholder="Email"
           value={email}
-          onChange={(e)=>setEmail(e.target.value)}
+          onChange={(e) => setEmail(e.target.value)}
           className="border p-2 w-full"
         />
 
         <input
           placeholder="Indirizzo"
           value={address}
-          onChange={(e)=>setAddress(e.target.value)}
+          onChange={(e) => setAddress(e.target.value)}
           className="border p-2 w-full"
         />
 
         <textarea
           placeholder="Tipo lavoro"
           value={job}
-          onChange={(e)=>setJob(e.target.value)}
+          onChange={(e) => setJob(e.target.value)}
           className="border p-2 w-full"
         />
 
@@ -241,27 +235,18 @@ export default function DashboardMain({
       <div className="space-y-2">
 
         {filtered.map((c) => (
-
           <div
             key={c.id}
             className="border p-3 rounded cursor-pointer"
             onClick={() => goDetail(c.id!)}
           >
-
             <div>{c.name}</div>
-
-            <div className="text-sm text-gray-500">
-              {c.phone}
-            </div>
-
+            <div className="text-sm text-gray-500">{c.phone}</div>
           </div>
-
         ))}
 
       </div>
 
     </div>
-
   );
-
 }
