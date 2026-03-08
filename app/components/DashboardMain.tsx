@@ -7,6 +7,7 @@ import type { User } from "firebase/auth";
 
 interface Props {
   user: User;
+  phonePrefill?: string | null;
   goQueue: (type: string) => void;
   goDetail: (id: string) => void;
   goCalendar: () => void;
@@ -25,12 +26,15 @@ interface Client {
 }
 
 export default function DashboardMain({
+  user,
+  phonePrefill,
   goQueue,
   goDetail,
   goCalendar,
   goAgenda,
   logout,
 }: Props) {
+
   const [clients, setClients] = useState<Client[]>([]);
   const [search, setSearch] = useState("");
   const [phoneLookup, setPhoneLookup] = useState("");
@@ -42,7 +46,9 @@ export default function DashboardMain({
   const [job, setJob] = useState("");
 
   const load = async () => {
+
     const snap = await getDocs(collection(db, "clients"));
+
     const list: Client[] = [];
 
     snap.forEach((d) => {
@@ -63,7 +69,14 @@ export default function DashboardMain({
     load();
   }, []);
 
+  useEffect(() => {
+    if (phonePrefill) {
+      setPhone(phonePrefill);
+    }
+  }, [phonePrefill]);
+
   const addClient = async () => {
+
     if (!name) return;
 
     await addDoc(collection(db, "clients"), {
@@ -73,7 +86,7 @@ export default function DashboardMain({
       address,
       job,
       maintenanceDate: new Date().toISOString(),
-      history: [],
+      history: []
     });
 
     setName("");
@@ -86,6 +99,7 @@ export default function DashboardMain({
   };
 
   const searchPhone = () => {
+
     const clean = phoneLookup.replace(/\s/g, "");
 
     const found = clients.find(
@@ -125,14 +139,20 @@ export default function DashboardMain({
 
   return (
     <div className="p-4 space-y-4 max-w-6xl mx-auto">
+
       <div className="flex justify-between items-center">
         <h1 className="text-xl font-bold">Gestionale Clienti</h1>
-        <button onClick={logout} className="border px-3 py-1 rounded">
+
+        <button
+          onClick={logout}
+          className="border px-3 py-1 rounded"
+        >
           Logout
         </button>
       </div>
 
       <div className="grid grid-cols-3 gap-3">
+
         <button
           onClick={() => goQueue("red")}
           className="bg-red-600 text-white p-3 rounded font-bold"
@@ -153,10 +173,13 @@ export default function DashboardMain({
         >
           🟡 {yellow}
         </button>
+
       </div>
 
       <div className="grid md:grid-cols-2 gap-6">
+
         <div className="space-y-4">
+
           <button
             onClick={goCalendar}
             className="border p-2 rounded w-full"
@@ -172,6 +195,7 @@ export default function DashboardMain({
           </button>
 
           <div className="border p-3 rounded space-y-2">
+
             <h2 className="font-bold">Ricerca telefono</h2>
 
             <input
@@ -187,6 +211,7 @@ export default function DashboardMain({
             >
               Cerca cliente
             </button>
+
           </div>
 
           <input
@@ -197,20 +222,32 @@ export default function DashboardMain({
           />
 
           <div className="space-y-2 max-h-[400px] overflow-y-auto">
+
             {filtered.map((c) => (
+
               <div
                 key={c.id}
                 className="border p-3 rounded cursor-pointer hover:bg-gray-100"
                 onClick={() => goDetail(c.id!)}
               >
-                <div className="font-semibold">{c.name}</div>
-                <div className="text-sm text-gray-500">{c.phone}</div>
+                <div className="font-semibold">
+                  {c.name}
+                </div>
+
+                <div className="text-sm text-gray-500">
+                  {c.phone}
+                </div>
+
               </div>
+
             ))}
+
           </div>
+
         </div>
 
         <div className="border p-4 rounded space-y-2">
+
           <h2 className="font-bold">Nuovo Cliente</h2>
 
           <input
@@ -254,8 +291,11 @@ export default function DashboardMain({
           >
             Salva cliente
           </button>
+
         </div>
+
       </div>
+
     </div>
   );
 }
