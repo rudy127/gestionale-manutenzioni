@@ -113,6 +113,30 @@ load()
 
 }
 
+const completeIntervention=async()=>{
+
+if(!client) return
+
+const entry={
+date:new Date().toISOString(),
+note: note || "Intervento completato"
+}
+
+const updated=[...(client.history || []),entry]
+
+await updateDoc(doc(db,"clients",client.id),{
+history:updated,
+maintenanceDate:nextDate
+})
+
+setNote("")
+
+alert("Intervento salvato")
+
+load()
+
+}
+
 const deleteNote=async(index:number)=>{
 
 if(!client) return
@@ -182,7 +206,7 @@ return(
 ← Torna
 </button>
 
-<h1 className="text-xl font-bold">Cliente</h1>
+<h1 className="text-xl font-bold">{name}</h1>
 
 <div className="space-y-2">
 
@@ -298,6 +322,13 @@ onClick={addNote}
 className="bg-blue-700 text-white p-2 rounded w-full"
 >
 Salva nota
+</button>
+
+<button
+onClick={completeIntervention}
+className="bg-orange-600 text-white p-2 rounded w-full"
+>
+✔ Intervento completato
 </button>
 
 <button
