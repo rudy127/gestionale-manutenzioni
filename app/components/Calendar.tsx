@@ -1,124 +1,182 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "../page";
 import type { User } from "firebase/auth";
 
-interface Props {
-  user: User;
-  goBack: () => void;
-  goDetail: (id: string) => void;
+interface Props{
+user:User
+goBack:()=>void
+goDetail:(id:string)=>void
 }
 
-interface Client {
-  id?: string;
-  name: string;
-  phone?: string;
-  maintenanceDate: string;
+interface Client{
+id:string
+name:string
+address:string
+maintenanceDate:string
 }
 
-function monthLabel(d: Date) {
-  return d.toLocaleDateString("it-IT", { month: "long", year: "numeric" });
+export default function Calendar({user,goBack,goDetail}:Props){
+
+const [clients,setClients]=useState<Client[]>([])
+const [currentDate,setCurrentDate]=useState(new Date())
+
+const load=async()=>{
+
+const snap=await getDocs(collection(db,"clients"))
+
+const list:Client[]=[]
+
+snap.forEach(d=>{
+
+const data=d.data() as Client
+
+list.push({
+id:d.id,
+name:data.name,
+address:data.address,
+maintenanceDate:data.maintenanceDate
+})
+
+})
+
+setClients(list)
+
 }
 
-function dayLabel(d: Date) {
-  return d.toLocaleDateString("it-IT", { weekday: "short", day: "2-digit", month: "2-digit" });
+useEffect(()=>{load()},[])
+
+const startOfMonth=new Date(currentDate.getFullYear(),currentDate.getMonth(),1)
+const endOfMonth=new Date(currentDate.getFullYear(),currentDate.getMonth()+1,0)
+
+const days=endOfMonth.getDate()
+
+const openNavigation=(address:string)=>{
+
+const url=
+"https://www.google.com/maps/search/?api=1&query="+
+encodeURIComponent(address)
+
+window.open(url,"_blank")
+
 }
 
-export default function Calendar({ user, goBack, goDetail }: Props) {
-  const [clients, setClients] = useState<Client[]>([]);
-  const [cursor, setCursor] = useState(new Date());
+const nextMonth=()=>{
+setCurrentDate(
+new Date(currentDate.getFullYear(),currentDate.getMonth()+1,1)
+)
+}
 
-  const load = async () => {
-    const snap = await getDocs(collection(db, "clients"));
-    const list: Client[] = [];
-    snap.forEach((d) => {
-      const data = d.data() as Client;
-      list.push({ ...data, id: d.id });
-    });
-    setClients(list);
-  };
+const prevMonth=()=>{
+setCurrentDate(
+new Date(currentDate.getFullYear(),currentDate.getMonth()-1,1)
+)
+}
 
-  useEffect(() => {
-    load();
-  }, []);
+const getClientsForDay=(day:number)=>{
 
-  const monthStart = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
-  const monthEnd = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0);
+return clients.filter(c=>{
 
-  const agenda = useMemo(() => {
-    const map: Record<string, Client[]> = {};
-    clients.forEach((c) => {
-      const d = new Date(c.maintenanceDate);
-      if (d >= monthStart && d <= monthEnd) {
-        const key = d.toISOString().slice(0, 10);
-        if (!map[key]) map[key] = [];
-        map[key].push(c);
-      }
-    });
-    const keys = Object.keys(map).sort();
-    return keys.map((k) => ({
-      date: new Date(k),
-      items: map[k].sort((a, b) => a.name.localeCompare(b.name)),
-    }));
-  }, [clients, monthStart, monthEnd]);
+const d=new Date(c.maintenanceDate)
 
-  return (
-    <div className="p-4 max-w-3xl mx-auto space-y-4">
-      <div className="flex items-center justify-between">
-        <button className="px-3 py-2 border rounded" onClick={goBack}>
-          ← Dashboard
-        </button>
+return(
+d.getFullYear()===currentDate.getFullYear() &&
+d.getMonth()===currentDate.getMonth() &&
+d.getDate()===day
+)
 
-        <div className="font-bold text-lg">📅 {monthLabel(cursor)}</div>
+})
 
-        <div className="flex gap-2">
-          <button
-            className="px-3 py-2 border rounded"
-            onClick={() =>
-              setCursor(new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1))
-            }
-          >
-            ←
-          </button>
-          <button
-            className="px-3 py-2 border rounded"
-            onClick={() =>
-              setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1))
-            }
-          >
-            →
-          </button>
-        </div>
-      </div>
+}
 
-      {agenda.length === 0 && (
-        <div className="text-gray-500">Nessuna manutenzione in questo mese.</div>
-      )}
+return(
 
-      <div className="space-y-3">
-        {agenda.map((day) => (
-          <div key={day.date.toISOString()} className="border rounded p-3">
-            <div className="font-bold mb-2">{dayLabel(day.date)}</div>
+<div className="p-4 space-y-4">
 
-            <div className="space-y-2">
-              {day.items.map((c) => (
-                <div
-                  key={c.id}
-                  onClick={() => goDetail(c.id!)}
-                  className="cursor-pointer border rounded p-2 hover:bg-gray-50"
-                >
-                  <div className="font-medium">{c.name}</div>
-                  {c.phone && (
-                    <div className="text-sm text-gray-500">{c.phone}</div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
+<button
+onClick={goBack}
+className="border p-2 rounded"
+>
+← Dashboard
+</button>
+
+<div className="flex justify-between items-center">
+
+<button
+onClick={prevMonth}
+className="border px-3 py-1 rounded"
+>
+◀
+</button>
+
+<h1 className="text-xl font-bold">
+
+{currentDate.toLocaleString("it-IT",{month:"long",year:"numeric"})}
+
+</h1>
+
+<button
+onClick={nextMonth}
+className="border px-3 py-1 rounded"
+>
+▶
+</button>
+
+</div>
+
+<div className="grid grid-cols-7 gap-2">
+
+{Array.from({length:days},(_,i)=>{
+
+const day=i+1
+
+const dayClients=getClientsForDay(day)
+
+return(
+
+<div
+key={day}
+className="border p-2 rounded min-h-[90px] text-xs"
+>
+
+<div className="font-bold">
+{day}
+</div>
+
+{dayClients.map(c=>(
+
+<div key={c.id} className="mt-1 space-y-1">
+
+<div
+className="cursor-pointer text-blue-700"
+onClick={()=>goDetail(c.id)}
+>
+{c.name}
+</div>
+
+<button
+onClick={()=>openNavigation(c.address)}
+className="bg-green-600 text-white px-1 py-0.5 rounded text-[10px]"
+>
+🧭
+</button>
+
+</div>
+
+))}
+
+</div>
+
+)
+
+})}
+
+</div>
+
+</div>
+
+)
+
 }
