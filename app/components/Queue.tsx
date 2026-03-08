@@ -29,146 +29,157 @@ export default function Queue({ user, filter, goBack, goDetail }: Props) {
 
   const load = async () => {
 
-    const snap = await getDocs(collection(db, "clients"));
+    const snap = await getDocs(collection(db,"clients"));
 
-    const list: Client[] = [];
+    const list:Client[]=[];
 
-    snap.forEach((d) => {
+    snap.forEach(d=>{
 
-      const data = d.data() as Client;
+      const data=d.data() as Client;
 
       list.push({
-        id: d.id,
-        name: data.name,
-        address: data.address,
-        maintenanceDate: data.maintenanceDate
+        id:d.id,
+        name:data.name,
+        address:data.address,
+        maintenanceDate:data.maintenanceDate
       });
 
     });
 
     setClients(list);
+
   };
 
-  useEffect(() => {
+  useEffect(()=>{
 
     load();
 
-    if (navigator.geolocation) {
+    getLocation();
 
-      navigator.geolocation.getCurrentPosition((pos) => {
+  },[]);
 
-        setPosition({
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude
-        });
+  const getLocation=()=>{
 
+    if(!navigator.geolocation) return;
+
+    navigator.geolocation.getCurrentPosition((pos)=>{
+
+      setPosition({
+        lat:pos.coords.latitude,
+        lng:pos.coords.longitude
       });
 
-    }
+    });
 
-  }, []);
+  };
 
-  const getDays = (date: string) => {
+  const getDays=(date:string)=>{
 
     return Math.ceil(
-      (new Date(date).getTime() - new Date().getTime()) /
-      (1000 * 60 * 60 * 24)
+      (new Date(date).getTime()-new Date().getTime())/(1000*60*60*24)
     );
 
   };
 
-  const filtered = clients.filter((c) => {
+  const filtered=clients.filter(c=>{
 
-    const days = getDays(c.maintenanceDate);
+    const days=getDays(c.maintenanceDate);
 
-    if (filter === "red") return days <= 0;
-    if (filter === "orange") return days > 0 && days <= 7;
-    if (filter === "yellow") return days > 7 && days <= 14;
+    if(filter==="red") return days<=0;
+    if(filter==="orange") return days>0 && days<=7;
+    if(filter==="yellow") return days>7 && days<=14;
 
     return true;
 
   });
 
-  const openRoute = () => {
+  const openSingleRoute=(address:string)=>{
 
-    if (filtered.length === 0) return;
-
-    const stops = filtered
-      .slice(0,10)
-      .map(c => encodeURIComponent(c.address));
-
-    const url = "https://www.google.com/maps/dir/" + stops.join("/");
+    const url=
+    "https://www.google.com/maps/search/?api=1&query="+
+    encodeURIComponent(address);
 
     window.open(url,"_blank");
 
   };
 
-  const openSingleRoute = (address:string) => {
+  const openRoute=()=>{
 
-    const url =
-      "https://www.google.com/maps/search/?api=1&query=" +
-      encodeURIComponent(address);
+    if(filtered.length===0) return;
+
+    const stops=filtered
+    .slice(0,10)
+    .map(c=>encodeURIComponent(c.address));
+
+    const url="https://www.google.com/maps/dir/"+stops.join("/");
 
     window.open(url,"_blank");
 
   };
 
-  return (
+  return(
 
-    <div className="p-4 space-y-4">
+  <div className="p-4 space-y-4">
+
+    <button
+    onClick={goBack}
+    className="border p-2 rounded"
+    >
+    ← Dashboard
+    </button>
+
+    <h1 className="text-lg font-bold">
+    Coda Manutenzioni
+    </h1>
+
+    <button
+    onClick={getLocation}
+    className="bg-orange-600 text-white p-2 rounded w-full"
+    >
+    📍 Ricalcola posizione
+    </button>
+
+    <button
+    onClick={openRoute}
+    className="bg-blue-700 text-white p-2 rounded w-full"
+    >
+    🧭 Pianifica giro interventi
+    </button>
+
+    <div className="space-y-2">
+
+    {filtered.map(c=>(
+
+      <div
+      key={c.id}
+      className="border p-3 rounded space-y-1"
+      >
+
+      <div
+      className="font-bold cursor-pointer"
+      onClick={()=>goDetail(c.id)}
+      >
+      {c.name}
+      </div>
+
+      <div className="text-sm text-gray-500">
+      {c.address}
+      </div>
 
       <button
-        onClick={goBack}
-        className="border p-2 rounded"
+      onClick={()=>openSingleRoute(c.address)}
+      className="bg-green-600 text-white px-2 py-1 rounded text-sm"
       >
-        ← Dashboard
+      🧭 Naviga
       </button>
-
-      <h1 className="text-lg font-bold">
-        Coda Manutenzioni
-      </h1>
-
-      <button
-        onClick={openRoute}
-        className="bg-blue-700 text-white p-2 rounded w-full"
-      >
-        🧭 Pianifica giro interventi
-      </button>
-
-      <div className="space-y-2">
-
-        {filtered.map((c) => (
-
-          <div
-            key={c.id}
-            className="border p-3 rounded space-y-1"
-          >
-
-            <div
-              className="font-bold cursor-pointer"
-              onClick={() => goDetail(c.id)}
-            >
-              {c.name}
-            </div>
-
-            <div className="text-sm text-gray-500">
-              {c.address}
-            </div>
-
-            <button
-              onClick={() => openSingleRoute(c.address)}
-              className="bg-green-600 text-white px-2 py-1 rounded text-sm"
-            >
-              🧭 Naviga
-            </button>
-
-          </div>
-
-        ))}
 
       </div>
 
+    ))}
+
     </div>
+
+  </div>
 
   );
 
