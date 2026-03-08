@@ -5,130 +5,171 @@ import { collection, getDocs } from "firebase/firestore";
 import { db } from "../page";
 import type { User } from "firebase/auth";
 
-interface Props{
-user:User
-filter:string|null
-goBack:()=>void
-goDetail:(id:string)=>void
+interface Props {
+  user: User;
+  filter: string | null;
+  goBack: () => void;
+  goDetail: (id: string) => void;
 }
 
-interface Client{
-id:string
-name:string
-address:string
-maintenanceDate:string
+interface Client {
+  id: string;
+  name: string;
+  address: string;
+  maintenanceDate: string;
+  lat?: number;
+  lng?: number;
+  distance?: number;
 }
 
-export default function Queue({user,filter,goBack,goDetail}:Props){
+export default function Queue({ user, filter, goBack, goDetail }: Props) {
 
-const [clients,setClients]=useState<Client[]>([])
+  const [clients, setClients] = useState<Client[]>([]);
+  const [position, setPosition] = useState<{lat:number,lng:number}|null>(null);
 
-const load=async()=>{
+  const load = async () => {
 
-const snap=await getDocs(collection(db,"clients"))
+    const snap = await getDocs(collection(db, "clients"));
 
-const list:Client[]=[]
+    const list: Client[] = [];
 
-snap.forEach(d=>{
+    snap.forEach((d) => {
 
-const data=d.data() as Client
+      const data = d.data() as Client;
 
-list.push({
-id:d.id,
-name:data.name,
-address:data.address,
-maintenanceDate:data.maintenanceDate
-})
+      list.push({
+        id: d.id,
+        name: data.name,
+        address: data.address,
+        maintenanceDate: data.maintenanceDate
+      });
 
-})
+    });
 
-setClients(list)
+    setClients(list);
+  };
 
-}
+  useEffect(() => {
 
-useEffect(()=>{load()},[])
+    load();
 
-const getDays=(date:string)=>{
+    if (navigator.geolocation) {
 
-return Math.ceil(
-(new Date(date).getTime()-new Date().getTime())/(1000*60*60*24)
-)
+      navigator.geolocation.getCurrentPosition((pos) => {
 
-}
+        setPosition({
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude
+        });
 
-const filtered=clients.filter(c=>{
+      });
 
-const days=getDays(c.maintenanceDate)
+    }
 
-if(filter==="red") return days<=0
-if(filter==="orange") return days>0 && days<=7
-if(filter==="yellow") return days>7 && days<=14
+  }, []);
 
-return true
+  const getDays = (date: string) => {
 
-})
+    return Math.ceil(
+      (new Date(date).getTime() - new Date().getTime()) /
+      (1000 * 60 * 60 * 24)
+    );
 
-const openRoute=()=>{
+  };
 
-if(filtered.length===0) return
+  const filtered = clients.filter((c) => {
 
-const maxStops=10
+    const days = getDays(c.maintenanceDate);
 
-const stops=filtered
-.slice(0,maxStops)
-.map(c=>encodeURIComponent(c.address))
+    if (filter === "red") return days <= 0;
+    if (filter === "orange") return days > 0 && days <= 7;
+    if (filter === "yellow") return days > 7 && days <= 14;
 
-const url="https://www.google.com/maps/dir/"+stops.join("/")
+    return true;
 
-window.open(url,"_blank")
+  });
 
-}
+  const openRoute = () => {
 
-return(
+    if (filtered.length === 0) return;
 
-<div className="p-4 space-y-4">
+    const stops = filtered
+      .slice(0,10)
+      .map(c => encodeURIComponent(c.address));
 
-<button onClick={goBack} className="border p-2 rounded">
-← Dashboard
-</button>
+    const url = "https://www.google.com/maps/dir/" + stops.join("/");
 
-<h1 className="text-lg font-bold">
-Coda Manutenzioni
-</h1>
+    window.open(url,"_blank");
 
-<button
-onClick={openRoute}
-className="bg-blue-700 text-white p-2 rounded w-full"
->
-🧭 Pianifica giro interventi
-</button>
+  };
 
-<div className="space-y-2">
+  const openSingleRoute = (address:string) => {
 
-{filtered.map(c=>(
+    const url =
+      "https://www.google.com/maps/search/?api=1&query=" +
+      encodeURIComponent(address);
 
-<div
-key={c.id}
-className="border p-3 rounded cursor-pointer"
-onClick={()=>goDetail(c.id)}
->
+    window.open(url,"_blank");
 
-<div className="font-bold">
-{c.name}
-</div>
+  };
 
-<div className="text-sm text-gray-500">
-{c.address}
-</div>
+  return (
 
-</div>
+    <div className="p-4 space-y-4">
 
-))}
+      <button
+        onClick={goBack}
+        className="border p-2 rounded"
+      >
+        ← Dashboard
+      </button>
 
-</div>
+      <h1 className="text-lg font-bold">
+        Coda Manutenzioni
+      </h1>
 
-</div>
+      <button
+        onClick={openRoute}
+        className="bg-blue-700 text-white p-2 rounded w-full"
+      >
+        🧭 Pianifica giro interventi
+      </button>
 
-)
+      <div className="space-y-2">
+
+        {filtered.map((c) => (
+
+          <div
+            key={c.id}
+            className="border p-3 rounded space-y-1"
+          >
+
+            <div
+              className="font-bold cursor-pointer"
+              onClick={() => goDetail(c.id)}
+            >
+              {c.name}
+            </div>
+
+            <div className="text-sm text-gray-500">
+              {c.address}
+            </div>
+
+            <button
+              onClick={() => openSingleRoute(c.address)}
+              className="bg-green-600 text-white px-2 py-1 rounded text-sm"
+            >
+              🧭 Naviga
+            </button>
+
+          </div>
+
+        ))}
+
+      </div>
+
+    </div>
+
+  );
 
 }
