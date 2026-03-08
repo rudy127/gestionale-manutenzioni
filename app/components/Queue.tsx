@@ -15,6 +15,7 @@ goDetail:(id:string)=>void
 interface Client{
 id:string
 name:string
+address:string
 maintenanceDate:string
 }
 
@@ -29,8 +30,16 @@ const snap=await getDocs(collection(db,"clients"))
 const list:Client[]=[]
 
 snap.forEach(d=>{
+
 const data=d.data() as Client
-list.push({...data,id:d.id})
+
+list.push({
+id:d.id,
+name:data.name,
+address:data.address,
+maintenanceDate:data.maintenanceDate
+})
+
 })
 
 setClients(list)
@@ -59,25 +68,64 @@ return true
 
 })
 
+const openRoute=()=>{
+
+if(filtered.length===0) return
+
+const maxStops=10
+
+const stops=filtered
+.slice(0,maxStops)
+.map(c=>encodeURIComponent(c.address))
+
+const url="https://www.google.com/maps/dir/"+stops.join("/")
+
+window.open(url,"_blank")
+
+}
+
 return(
 
-<div className="p-4 space-y-3">
+<div className="p-4 space-y-4">
 
 <button onClick={goBack} className="border p-2 rounded">
 ← Dashboard
 </button>
 
-<h1 className="font-bold text-lg">Coda Manutenzioni</h1>
+<h1 className="text-lg font-bold">
+Coda Manutenzioni
+</h1>
+
+<button
+onClick={openRoute}
+className="bg-blue-700 text-white p-2 rounded w-full"
+>
+🧭 Pianifica giro interventi
+</button>
+
+<div className="space-y-2">
 
 {filtered.map(c=>(
+
 <div
 key={c.id}
 className="border p-3 rounded cursor-pointer"
 onClick={()=>goDetail(c.id)}
 >
+
+<div className="font-bold">
 {c.name}
 </div>
+
+<div className="text-sm text-gray-500">
+{c.address}
+</div>
+
+</div>
+
 ))}
+
+</div>
 
 </div>
 
