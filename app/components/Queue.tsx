@@ -17,15 +17,12 @@ interface Client {
   name: string;
   address: string;
   maintenanceDate: string;
-  lat?: number;
-  lng?: number;
-  distance?: number;
 }
 
 export default function Queue({ user, filter, goBack, goDetail }: Props) {
 
   const [clients, setClients] = useState<Client[]>([]);
-  const [position, setPosition] = useState<{lat:number,lng:number}|null>(null);
+  const [currentIndex, setCurrentIndex] = useState<number | null>(null);
 
   const load = async () => {
 
@@ -51,27 +48,8 @@ export default function Queue({ user, filter, goBack, goDetail }: Props) {
   };
 
   useEffect(()=>{
-
     load();
-
-    getLocation();
-
   },[]);
-
-  const getLocation=()=>{
-
-    if(!navigator.geolocation) return;
-
-    navigator.geolocation.getCurrentPosition((pos)=>{
-
-      setPosition({
-        lat:pos.coords.latitude,
-        lng:pos.coords.longitude
-      });
-
-    });
-
-  };
 
   const getDays=(date:string)=>{
 
@@ -93,11 +71,36 @@ export default function Queue({ user, filter, goBack, goDetail }: Props) {
 
   });
 
-  const openSingleRoute=(address:string)=>{
+  const openNavigation=(address:string,index:number)=>{
 
     const url=
     "https://www.google.com/maps/search/?api=1&query="+
     encodeURIComponent(address);
+
+    setCurrentIndex(index);
+
+    window.open(url,"_blank");
+
+  };
+
+  const nextClient=()=>{
+
+    if(currentIndex===null) return;
+
+    const next=currentIndex+1;
+
+    if(next>=filtered.length){
+      alert("Giro interventi completato");
+      return;
+    }
+
+    const client=filtered[next];
+
+    setCurrentIndex(next);
+
+    const url=
+    "https://www.google.com/maps/search/?api=1&query="+
+    encodeURIComponent(client.address);
 
     window.open(url,"_blank");
 
@@ -133,22 +136,22 @@ export default function Queue({ user, filter, goBack, goDetail }: Props) {
     </h1>
 
     <button
-    onClick={getLocation}
-    className="bg-orange-600 text-white p-2 rounded w-full"
-    >
-    📍 Ricalcola posizione
-    </button>
-
-    <button
     onClick={openRoute}
     className="bg-blue-700 text-white p-2 rounded w-full"
     >
     🧭 Pianifica giro interventi
     </button>
 
+    <button
+    onClick={nextClient}
+    className="bg-orange-600 text-white p-2 rounded w-full"
+    >
+    ➡ Prossimo cliente
+    </button>
+
     <div className="space-y-2">
 
-    {filtered.map(c=>(
+    {filtered.map((c,i)=>(
 
       <div
       key={c.id}
@@ -167,7 +170,7 @@ export default function Queue({ user, filter, goBack, goDetail }: Props) {
       </div>
 
       <button
-      onClick={()=>openSingleRoute(c.address)}
+      onClick={()=>openNavigation(c.address,i)}
       className="bg-green-600 text-white px-2 py-1 rounded text-sm"
       >
       🧭 Naviga
