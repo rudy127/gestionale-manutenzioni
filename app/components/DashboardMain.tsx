@@ -23,6 +23,7 @@ interface Client {
   address: string;
   job: string;
   maintenanceDate: string;
+  history?: any[];
 }
 
 export default function DashboardMain({
@@ -44,12 +45,22 @@ export default function DashboardMain({
   const [job, setJob] = useState("");
 
   const load = async () => {
+
     const snap = await getDocs(collection(db, "clients"));
+
     const list: Client[] = [];
 
     snap.forEach((d) => {
       const data = d.data() as Client;
-      list.push({ ...data, id: d.id });
+      list.push({
+        id: d.id,
+        name: data.name || "",
+        phone: data.phone || "",
+        email: data.email || "",
+        address: data.address || "",
+        job: data.job || "",
+        maintenanceDate: data.maintenanceDate || "",
+      });
     });
 
     setClients(list);
@@ -61,17 +72,22 @@ export default function DashboardMain({
 
   const addClient = async () => {
 
-    if (!name) return;
+    if (!name.trim()) {
+      alert("Inserisci almeno il nome cliente");
+      return;
+    }
 
-    await addDoc(collection(db, "clients"), {
-      name,
-      phone,
-      email,
-      address,
-      job,
+    const newClient = {
+      name: name,
+      phone: phone,
+      email: email,
+      address: address,
+      job: job,
       maintenanceDate: new Date().toISOString(),
       history: [],
-    });
+    };
+
+    await addDoc(collection(db, "clients"), newClient);
 
     setName("");
     setPhone("");
@@ -79,7 +95,7 @@ export default function DashboardMain({
     setAddress("");
     setJob("");
 
-    load();
+    await load();
   };
 
   const getDays = (date: string) =>
@@ -100,8 +116,8 @@ export default function DashboardMain({
 
   const filtered = clients.filter(
     (c) =>
-      c.name?.toLowerCase().includes(search.toLowerCase()) ||
-      c.phone?.includes(search)
+      c.name.toLowerCase().includes(search.toLowerCase()) ||
+      c.phone.includes(search)
   );
 
   return (
